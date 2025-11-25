@@ -9,22 +9,22 @@ export async function GET(request) {
   }
 
   try {
+    // Use the new Grants.gov search2 API endpoint (launched March 2025)
     const requestBody = {
       keyword: keyword,
       oppStatuses: "forecasted|posted",
-      sortBy: "openDate|desc",
       rows: 50
     };
 
     if (agency) {
-      requestBody.agency = agency;
+      requestBody.agencies = agency;
     }
 
     if (eligibility) {
       requestBody.eligibilities = eligibility;
     }
 
-    const response = await fetch('https://www.grants.gov/grantsws/rest/opportunities/search/', {
+    const response = await fetch('https://api.grants.gov/v1/api/search2', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -33,32 +33,17 @@ export async function GET(request) {
     });
 
     if (!response.ok) {
-      const altResponse = await fetch(
-        `https://www.grants.gov/grantsws/rest/opportunities/search/v2/search2?keyword=${encodeURIComponent(keyword)}&oppStatus=posted,forecasted&rows=50`,
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-        }
-      );
-
-      if (!altResponse.ok) {
-        throw new Error(`Grants.gov API error: ${response.status}`);
-      }
-
-      const altData = await altResponse.json();
-      return Response.json({
-        opportunities: altData.oppHits || [],
-        total: altData.totalRecords || 0,
-        source: 'grants.gov'
-      });
+      const errorText = await response.text();
+      throw new Error(`Grants.gov API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
 
+    // The new search2 API returns data nested under data.data
+    const responseData = data.data || data;
+
     // Safely extract opportunities array with fallbacks
-    const rawOpportunities = data.oppHits || data.opportunities || [];
+    const rawOpportunities = responseData.oppHits || responseData.opportunities || [];
 
     // Safely map opportunities with null checks
     const opportunities = rawOpportunities.map(opp => {
@@ -66,21 +51,22 @@ export async function GET(request) {
       return {
         id: opp.id || opp.opportunityId || null,
         title: opp.title || opp.opportunityTitle || 'Untitled',
-        agency: opp.agency || opp.agencyName || null,
-        description: opp.description || (opp.synopsis ? opp.synopsis.synopsisDesc : null),
-        postDate: opp.postDate || opp.openDate || null,
-        closeDate: opp.closeDate || (opp.close ? opp.close.date : null),
+        agency: opp.agencyCode || opp.agency || opp.agencyName || null,
+        description: opp.synopsis || opp.description || null,
+        postDate: opp.openDate || opp.postDate || null,
+        closeDate: opp.closeDate || null,
         awardCeiling: opp.awardCeiling || null,
         awardFloor: opp.awardFloor || null,
-        opportunityNumber: opp.number || opp.opportunityNumber || null,
-        category: (opp.category ? opp.category.description : null) || opp.categoryOfFundingActivity || null,
-        eligibility: opp.eligibilities || opp.applicantTypes || null,
+        opportunityNumber: opp.oppNum || opp.number || opp.opportunityNumber || null,
+        category: opp.fundingCategory || opp.categoryOfFundingActivity || null,
+        eligibility: opp.applicantEligibility || opp.eligibilities || opp.applicantTypes || null,
+        link: opp.id ? `https://www.grants.gov/search-results-detail/${opp.id}` : null,
       };
     }).filter(opp => opp !== null);
 
     return Response.json({
       opportunities,
-      total: data.totalRecords || opportunities.length,
+      total: responseData.hitCount || responseData.totalRecords || opportunities.length,
       source: 'grants.gov'
     });
 
