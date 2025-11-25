@@ -2,6 +2,7 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const keyword = searchParams.get('keyword') || '';
   const agency = searchParams.get('agency') || '';
+  const opportunityType = searchParams.get('type') || ''; // Filter: 'g' for grants, 'o' for contracts, etc.
 
   const apiKey = process.env.SAM_GOV_API_KEY;
 
@@ -47,6 +48,13 @@ export async function GET(request) {
 
     if (agency) {
       params.append('organizationId', agency);
+    }
+
+    // Filter by opportunity type (ptype parameter)
+    // g = Grant, o = Solicitation (contract), p = Presolicitation, k = Combined Synopsis/Solicitation
+    // r = Sources Sought, s = Special Notice, i = Intent to Bundle, a = Award Notice
+    if (opportunityType) {
+      params.append('ptype', opportunityType);
     }
 
     const response = await fetch(`${baseUrl}?${params.toString()}`, {
