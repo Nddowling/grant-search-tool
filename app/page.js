@@ -843,7 +843,6 @@ export default function Home() {
 
       <footer className="text-center text-white/50 text-sm py-8">
         <p>Data sourced from Grants.gov and SAM.gov APIs</p>
-        <p className="mt-2">Built for FedGrantLink by Nick @ Canopy</p>
       </footer>
     </main>
   );
