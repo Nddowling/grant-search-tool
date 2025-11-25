@@ -1,16 +1,80 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [agency, setAgency] = useState('');
   const [eligibility, setEligibility] = useState('');
+  const [samType, setSamType] = useState('g'); // Default to grants only
   const [results, setResults] = useState({ grants: [], sam: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
   const [favorites, setFavorites] = useState([]);
+  const [sortBy, setSortBy] = useState('relevance'); // relevance, deadline, posted, amount
+
+  // Load favorites from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedFavorites = localStorage.getItem('grantSearchFavorites');
+      if (savedFavorites) {
+        setFavorites(JSON.parse(savedFavorites));
+      }
+    } catch (e) {
+      console.error('Error loading favorites:', e);
+    }
+  }, []);
+
+  // Save favorites to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem('grantSearchFavorites', JSON.stringify(favorites));
+    } catch (e) {
+      console.error('Error saving favorites:', e);
+    }
+  }, [favorites]);
+
+  // Calculate relevance score based on keyword matches
+  const calculateRelevanceScore = (opp, query) => {
+    if (!query) return 0;
+
+    const searchTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    let score = 0;
+
+    const title = (opp.title || opp.opportunityTitle || '').toLowerCase();
+    const description = (opp.description || opp.synopsis?.synopsisDesc || '').toLowerCase();
+    const agency = (opp.agency || opp.agencyName || opp.department || '').toLowerCase();
+
+    searchTerms.forEach(term => {
+      // Title matches are worth more (10 points each)
+      if (title.includes(term)) {
+        score += 10;
+        // Exact word match in title is even better
+        if (title.split(/\s+/).includes(term)) score += 5;
+      }
+
+      // Agency matches (5 points)
+      if (agency.includes(term)) score += 5;
+
+      // Description matches (2 points each)
+      if (description.includes(term)) {
+        score += 2;
+        // Count multiple occurrences (up to 3)
+        const matches = (description.match(new RegExp(term, 'g')) || []).length;
+        score += Math.min(matches - 1, 2);
+      }
+    });
+
+    // Boost for having award amount specified
+    if (opp.awardCeiling || opp.award?.amount) score += 2;
+
+    // Boost for having deadline in the future
+    const deadline = opp.closeDate || opp.responseDeadLine;
+    if (deadline && new Date(deadline) > new Date()) score += 3;
+
+    return score;
+  };
 
   const searchGrants = async () => {
     if (!searchQuery.trim()) {
@@ -24,7 +88,7 @@ export default function Home() {
     try {
       const [grantsRes, samRes] = await Promise.allSettled([
         fetch(`/api/grants?keyword=${encodeURIComponent(searchQuery)}&agency=${encodeURIComponent(agency)}&eligibility=${encodeURIComponent(eligibility)}`),
-        fetch(`/api/sam?keyword=${encodeURIComponent(searchQuery)}&agency=${encodeURIComponent(agency)}`)
+        fetch(`/api/sam?keyword=${encodeURIComponent(searchQuery)}&agency=${encodeURIComponent(agency)}&type=${encodeURIComponent(samType)}`)
       ]);
 
       const grantsData = grantsRes.status === 'fulfilled' && grantsRes.value.ok
@@ -35,9 +99,20 @@ export default function Home() {
         ? await samRes.value.json()
         : { opportunities: [], error: 'SAM.gov search failed' };
 
+      // Add relevance scores
+      const grantsWithScores = (grantsData.opportunities || []).map(g => ({
+        ...g,
+        relevanceScore: calculateRelevanceScore(g, searchQuery)
+      }));
+
+      const samWithScores = (samData.opportunities || []).map(s => ({
+        ...s,
+        relevanceScore: calculateRelevanceScore(s, searchQuery)
+      }));
+
       setResults({
-        grants: grantsData.opportunities || [],
-        sam: samData.opportunities || [],
+        grants: grantsWithScores,
+        sam: samWithScores,
         grantsError: grantsData.error,
         samError: samData.error
       });
@@ -57,7 +132,7 @@ export default function Home() {
     if (favorites.some(f => f.id === id)) {
       newFavorites = favorites.filter(f => f.id !== id);
     } else {
-      newFavorites = [...favorites, { ...opportunity, id, source }];
+      newFavorites = [...favorites, { ...opportunity, id, source, savedAt: new Date().toISOString() }];
     }
 
     setFavorites(newFavorites);
@@ -82,25 +157,71 @@ export default function Home() {
     }
   };
 
+  // Sort function based on selected criteria
+  const sortResults = (results) => {
+    return [...results].sort((a, b) => {
+      switch (sortBy) {
+        case 'relevance':
+          return (b.relevanceScore || 0) - (a.relevanceScore || 0);
+        case 'deadline':
+          const deadlineA = new Date(a.closeDate || a.responseDeadLine || '9999-12-31');
+          const deadlineB = new Date(b.closeDate || b.responseDeadLine || '9999-12-31');
+          return deadlineA - deadlineB;
+        case 'posted':
+          const postedA = new Date(a.postDate || a.postedDate || '1970-01-01');
+          const postedB = new Date(b.postDate || b.postedDate || '1970-01-01');
+          return postedB - postedA; // Most recent first
+        case 'amount':
+          const amountA = a.awardCeiling || a.award?.amount || 0;
+          const amountB = b.awardCeiling || b.award?.amount || 0;
+          return amountB - amountA; // Highest first
+        default:
+          return 0;
+      }
+    });
+  };
+
   const allResults = [
     ...results.grants.map(g => ({ ...g, source: 'grants' })),
     ...results.sam.map(s => ({ ...s, source: 'sam' }))
   ];
 
-  const filteredResults = activeTab === 'all'
-    ? allResults
-    : activeTab === 'grants'
-      ? results.grants.map(g => ({ ...g, source: 'grants' }))
-      : activeTab === 'sam'
-        ? results.sam.map(s => ({ ...s, source: 'sam' }))
-        : favorites;
+  const getFilteredResults = () => {
+    let filtered;
+    if (activeTab === 'all') {
+      filtered = allResults;
+    } else if (activeTab === 'grants') {
+      filtered = results.grants.map(g => ({ ...g, source: 'grants' }));
+    } else if (activeTab === 'sam') {
+      filtered = results.sam.map(s => ({ ...s, source: 'sam' }));
+    } else {
+      filtered = favorites;
+    }
+    return sortResults(filtered);
+  };
+
+  const filteredResults = getFilteredResults();
+
+  // Get SAM type label for display
+  const getSamTypeLabel = (type) => {
+    const labels = {
+      'g': 'Grants',
+      'o': 'Contracts',
+      'p': 'Presolicitations',
+      'k': 'Combined Synopsis',
+      'r': 'Sources Sought',
+      's': 'Special Notices',
+      '': 'All Types'
+    };
+    return labels[type] || type;
+  };
 
   return (
     <main className="min-h-screen p-4 md:p-8">
       <div className="max-w-6xl mx-auto mb-8">
         <div className="text-center mb-8">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            🏛️ Federal Grant Search
+            Federal Grant Search
           </h1>
           <p className="text-xl text-blue-200">
             Search Grants.gov & SAM.gov in one place
@@ -113,7 +234,7 @@ export default function Home() {
               <label className="block text-white/80 text-sm mb-2">Search Keywords</label>
               <input
                 type="text"
-                placeholder="e.g., infrastructure, rural development, broadband..."
+                placeholder="e.g., healthcare, infrastructure, education..."
                 className="input-field"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -124,7 +245,7 @@ export default function Home() {
               <label className="block text-white/80 text-sm mb-2">Agency (Optional)</label>
               <input
                 type="text"
-                placeholder="e.g., DOT, EPA, USDA..."
+                placeholder="e.g., HHS, DOT, EPA..."
                 className="input-field"
                 value={agency}
                 onChange={(e) => setAgency(e.target.value)}
@@ -157,29 +278,68 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex gap-4 justify-center">
-            <button
-              onClick={searchGrants}
-              disabled={loading}
-              className="btn-primary flex items-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <div className="loading-spinner"></div>
-                  Searching...
-                </>
-              ) : (
-                <>
-                  🔍 Search Grants
-                </>
-              )}
-            </button>
-            <button
-              onClick={() => { setSearchQuery(''); setAgency(''); setEligibility(''); setResults({ grants: [], sam: [] }); }}
-              className="btn-secondary"
-            >
-              Clear
-            </button>
+          {/* New row for SAM.gov type filter */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div>
+              <label className="block text-white/80 text-sm mb-2">SAM.gov Type</label>
+              <select
+                className="input-field"
+                value={samType}
+                onChange={(e) => setSamType(e.target.value)}
+              >
+                <option value="g">Grants Only</option>
+                <option value="o">Contracts Only</option>
+                <option value="p">Presolicitations</option>
+                <option value="k">Combined Synopsis</option>
+                <option value="r">Sources Sought</option>
+                <option value="s">Special Notices</option>
+                <option value="">All Types</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-white/80 text-sm mb-2">Sort Results By</label>
+              <select
+                className="input-field"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="relevance">Relevance</option>
+                <option value="deadline">Deadline (Soonest)</option>
+                <option value="posted">Posted Date (Newest)</option>
+                <option value="amount">Award Amount (Highest)</option>
+              </select>
+            </div>
+            <div className="md:col-span-2 flex items-end gap-4">
+              <button
+                onClick={searchGrants}
+                disabled={loading}
+                className="btn-primary flex items-center gap-2 flex-1"
+              >
+                {loading ? (
+                  <>
+                    <div className="loading-spinner"></div>
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    Search Grants
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setAgency('');
+                  setEligibility('');
+                  setSamType('g');
+                  setSortBy('relevance');
+                  setResults({ grants: [], sam: [] });
+                }}
+                className="btn-secondary"
+              >
+                Clear
+              </button>
+            </div>
           </div>
         </div>
 
@@ -229,7 +389,7 @@ export default function Home() {
                   : 'bg-white/20 text-white hover:bg-white/30'
               }`}
             >
-              ⭐ Favorites ({favorites.length})
+              Favorites ({favorites.length})
             </button>
           </div>
         )}
@@ -242,11 +402,23 @@ export default function Home() {
             >
               <div className="flex justify-between items-start mb-3">
                 <div className="flex-1">
-                  <span className={`inline-block px-2 py-1 rounded text-xs font-bold mb-2 ${
-                    opp.source === 'grants' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'
-                  }`}>
-                    {opp.source === 'grants' ? 'GRANTS.GOV' : 'SAM.GOV'}
-                  </span>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${
+                      opp.source === 'grants' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {opp.source === 'grants' ? 'GRANTS.GOV' : 'SAM.GOV'}
+                    </span>
+                    {opp.source === 'sam' && opp.type && (
+                      <span className="inline-block px-2 py-1 rounded text-xs bg-gray-100 text-gray-600">
+                        {opp.type}
+                      </span>
+                    )}
+                    {sortBy === 'relevance' && opp.relevanceScore > 0 && (
+                      <span className="inline-block px-2 py-1 rounded text-xs bg-purple-100 text-purple-700">
+                        Score: {opp.relevanceScore}
+                      </span>
+                    )}
+                  </div>
                   <h3 className="text-lg font-bold text-gray-900">
                     {opp.title || opp.opportunityTitle || 'Untitled Opportunity'}
                   </h3>
@@ -254,8 +426,9 @@ export default function Home() {
                 <button
                   onClick={() => toggleFavorite(opp, opp.source)}
                   className="text-2xl hover:scale-110 transition-transform"
+                  title={isFavorite(opp, opp.source) ? 'Remove from favorites' : 'Add to favorites'}
                 >
-                  {isFavorite(opp, opp.source) ? '⭐' : '☆'}
+                  {isFavorite(opp, opp.source) ? '★' : '☆'}
                 </button>
               </div>
 
@@ -329,8 +502,8 @@ export default function Home() {
 
         {(results.grantsError || results.samError) && (
           <div className="mt-4 text-sm text-yellow-200">
-            {results.grantsError && <p>⚠️ Grants.gov: {results.grantsError}</p>}
-            {results.samError && <p>⚠️ SAM.gov: {results.samError}</p>}
+            {results.grantsError && <p>Grants.gov: {results.grantsError}</p>}
+            {results.samError && <p>SAM.gov: {results.samError}</p>}
           </div>
         )}
       </div>
