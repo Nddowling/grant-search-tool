@@ -3,6 +3,8 @@ export async function GET(request) {
   const keyword = searchParams.get('keyword') || '';
   const agency = searchParams.get('agency') || '';
   const eligibility = searchParams.get('eligibility') || '';
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = 50;
 
   if (!keyword) {
     return Response.json({ error: 'Keyword is required', opportunities: [] }, { status: 400 });
@@ -13,7 +15,8 @@ export async function GET(request) {
     const requestBody = {
       keyword: keyword,
       oppStatuses: "forecasted|posted",
-      rows: 50
+      rows: pageSize,
+      startRecordNum: (page - 1) * pageSize
     };
 
     if (agency) {
@@ -64,9 +67,13 @@ export async function GET(request) {
       };
     }).filter(opp => opp !== null);
 
+    const total = responseData.hitCount || responseData.totalRecords || opportunities.length;
     return Response.json({
       opportunities,
-      total: responseData.hitCount || responseData.totalRecords || opportunities.length,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
       source: 'grants.gov'
     });
 
@@ -77,6 +84,9 @@ export async function GET(request) {
       error: `Grants.gov search temporarily unavailable: ${error.message}`,
       opportunities: [],
       total: 0,
+      page: 1,
+      pageSize: 50,
+      totalPages: 0,
       source: 'grants.gov'
     });
   }
