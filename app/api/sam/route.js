@@ -21,11 +21,12 @@ export async function GET(request) {
   }
 
   try {
+    // SAM.gov API requires date range to be within 1 year (365 days max)
     const today = new Date();
     const startDate = new Date(today);
-    startDate.setDate(startDate.getDate() - 90);
+    startDate.setDate(startDate.getDate() - 180); // 6 months in the past
     const endDate = new Date(today);
-    endDate.setDate(endDate.getDate() + 365);
+    endDate.setDate(endDate.getDate() + 180); // 6 months in the future (total: ~360 days)
 
     const formatDate = (date) => {
       const mm = String(date.getMonth() + 1).padStart(2, '0');
