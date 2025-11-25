@@ -6,11 +6,14 @@ export async function GET(request) {
   const apiKey = process.env.SAM_GOV_API_KEY;
 
   if (!apiKey) {
+    // Return 200 with empty results and a message instead of 500
+    // This allows the frontend to handle it gracefully
     return Response.json({
-      error: 'SAM.gov API key not configured. Add SAM_GOV_API_KEY to environment variables.',
+      error: 'SAM.gov API key not configured. Contact administrator to enable SAM.gov search.',
       opportunities: [],
+      total: 0,
       source: 'sam.gov'
-    }, { status: 500 });
+    });
   }
 
   if (!keyword) {
@@ -89,10 +92,12 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('SAM.gov API Error:', error);
+    // Return 200 with empty results and error message for graceful frontend handling
     return Response.json({
-      error: error.message,
+      error: `SAM.gov search temporarily unavailable: ${error.message}`,
       opportunities: [],
+      total: 0,
       source: 'sam.gov'
-    }, { status: 500 });
+    });
   }
 }

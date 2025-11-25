@@ -57,19 +57,26 @@ export async function GET(request) {
 
     const data = await response.json();
 
-    const opportunities = (data.oppHits || data.opportunities || []).map(opp => ({
-      id: opp.id || opp.opportunityId,
-      title: opp.title || opp.opportunityTitle,
-      agency: opp.agency || opp.agencyName,
-      description: opp.description || opp.synopsis?.synopsisDesc,
-      postDate: opp.postDate || opp.openDate,
-      closeDate: opp.closeDate || opp.close?.date,
-      awardCeiling: opp.awardCeiling,
-      awardFloor: opp.awardFloor,
-      opportunityNumber: opp.number || opp.opportunityNumber,
-      category: opp.category?.description || opp.categoryOfFundingActivity,
-      eligibility: opp.eligibilities || opp.applicantTypes,
-    }));
+    // Safely extract opportunities array with fallbacks
+    const rawOpportunities = data.oppHits || data.opportunities || [];
+
+    // Safely map opportunities with null checks
+    const opportunities = rawOpportunities.map(opp => {
+      if (!opp) return null;
+      return {
+        id: opp.id || opp.opportunityId || null,
+        title: opp.title || opp.opportunityTitle || 'Untitled',
+        agency: opp.agency || opp.agencyName || null,
+        description: opp.description || (opp.synopsis ? opp.synopsis.synopsisDesc : null),
+        postDate: opp.postDate || opp.openDate || null,
+        closeDate: opp.closeDate || (opp.close ? opp.close.date : null),
+        awardCeiling: opp.awardCeiling || null,
+        awardFloor: opp.awardFloor || null,
+        opportunityNumber: opp.number || opp.opportunityNumber || null,
+        category: (opp.category ? opp.category.description : null) || opp.categoryOfFundingActivity || null,
+        eligibility: opp.eligibilities || opp.applicantTypes || null,
+      };
+    }).filter(opp => opp !== null);
 
     return Response.json({
       opportunities,
@@ -79,10 +86,12 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Grants.gov API Error:', error);
+    // Return 200 with empty results and error message for graceful frontend handling
     return Response.json({
-      error: error.message,
+      error: `Grants.gov search temporarily unavailable: ${error.message}`,
       opportunities: [],
+      total: 0,
       source: 'grants.gov'
-    }, { status: 500 });
+    });
   }
 }
