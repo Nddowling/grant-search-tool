@@ -69,6 +69,8 @@ export async function GET(request) {
   const keyword = searchParams.get('keyword') || '';
   const agency = searchParams.get('agency') || '';
   const opportunityType = searchParams.get('type') || ''; // Filter: 'g' for grants, 'o' for contracts, etc.
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = 50;
 
   const apiKey = process.env.SAM_GOV_API_KEY;
 
@@ -79,6 +81,9 @@ export async function GET(request) {
       error: 'SAM.gov API key not configured. Contact administrator to enable SAM.gov search.',
       opportunities: [],
       total: 0,
+      page: 1,
+      pageSize: 50,
+      totalPages: 0,
       source: 'sam.gov'
     });
   }
@@ -109,8 +114,8 @@ export async function GET(request) {
       q: keyword,
       postedFrom: formatDate(startDate),
       postedTo: formatDate(endDate),
-      limit: '25', // Reduced from 50 for faster response
-      offset: '0'
+      limit: String(pageSize),
+      offset: String((page - 1) * pageSize)
     });
 
     if (agency) {
@@ -172,11 +177,15 @@ export async function GET(request) {
       uiLink: opp.uiLink || `https://sam.gov/opp/${opp.noticeId}/view`
     }));
 
-    console.log(`SAM.gov search returned ${opportunities.length} results`);
+    console.log(`SAM.gov search returned ${opportunities.length} results (page ${page})`);
 
+    const total = data.totalRecords || opportunities.length;
     return Response.json({
       opportunities,
-      total: data.totalRecords || opportunities.length,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
       source: 'sam.gov'
     });
 
@@ -200,6 +209,9 @@ export async function GET(request) {
       error: userMessage,
       opportunities: [],
       total: 0,
+      page: 1,
+      pageSize: 50,
+      totalPages: 0,
       source: 'sam.gov'
     });
   }

@@ -21,6 +21,11 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    grants: { page: 1, totalPages: 0, total: 0 },
+    sam: { page: 1, totalPages: 0, total: 0 }
+  });
   const [favorites, setFavorites] = useState([]);
   const [sortBy, setSortBy] = useState('relevance'); // relevance, deadline, posted, amount
   const [editingNote, setEditingNote] = useState(null); // ID of grant being edited
@@ -90,7 +95,7 @@ export default function Home() {
     return score;
   };
 
-  const searchGrants = async () => {
+  const searchGrants = async (grantsPage = 1, samPage = 1) => {
     if (!searchQuery.trim()) {
       setError('Please enter a search term');
       return;
@@ -101,17 +106,17 @@ export default function Home() {
 
     try {
       const [grantsRes, samRes] = await Promise.allSettled([
-        fetch(`/api/grants?keyword=${encodeURIComponent(searchQuery)}&agency=${encodeURIComponent(agency)}&eligibility=${encodeURIComponent(eligibility)}`),
-        fetch(`/api/sam?keyword=${encodeURIComponent(searchQuery)}&agency=${encodeURIComponent(agency)}&type=${encodeURIComponent(samType)}`)
+        fetch(`/api/grants?keyword=${encodeURIComponent(searchQuery)}&agency=${encodeURIComponent(agency)}&eligibility=${encodeURIComponent(eligibility)}&page=${grantsPage}`),
+        fetch(`/api/sam?keyword=${encodeURIComponent(searchQuery)}&agency=${encodeURIComponent(agency)}&type=${encodeURIComponent(samType)}&page=${samPage}`)
       ]);
 
       const grantsData = grantsRes.status === 'fulfilled' && grantsRes.value.ok
         ? await grantsRes.value.json()
-        : { opportunities: [], error: 'Grants.gov search failed' };
+        : { opportunities: [], error: 'Grants.gov search failed', page: 1, totalPages: 0, total: 0 };
 
       const samData = samRes.status === 'fulfilled' && samRes.value.ok
         ? await samRes.value.json()
-        : { opportunities: [], error: 'SAM.gov search failed' };
+        : { opportunities: [], error: 'SAM.gov search failed', page: 1, totalPages: 0, total: 0 };
 
       // Add relevance scores
       const grantsWithScores = (grantsData.opportunities || []).map(g => ({
@@ -131,11 +136,34 @@ export default function Home() {
         samError: samData.error
       });
 
+      // Update pagination state
+      setPagination({
+        grants: {
+          page: grantsData.page || 1,
+          totalPages: grantsData.totalPages || 0,
+          total: grantsData.total || 0
+        },
+        sam: {
+          page: samData.page || 1,
+          totalPages: samData.totalPages || 0,
+          total: samData.total || 0
+        }
+      });
+
     } catch (err) {
       setError('Search failed. Please try again.');
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Function to change page for a specific source
+  const changePage = async (source, newPage) => {
+    if (source === 'grants') {
+      await searchGrants(newPage, pagination.sam.page);
+    } else if (source === 'sam') {
+      await searchGrants(pagination.grants.page, newPage);
     }
   };
 
@@ -485,6 +513,10 @@ export default function Home() {
                   setSamType('g');
                   setSortBy('relevance');
                   setResults({ grants: [], sam: [] });
+                  setPagination({
+                    grants: { page: 1, totalPages: 0, total: 0 },
+                    sam: { page: 1, totalPages: 0, total: 0 }
+                  });
                 }}
                 className="btn-secondary"
               >
@@ -547,6 +579,55 @@ export default function Home() {
                 </span>
               )}
             </button>
+          </div>
+        )}
+
+        {/* Pagination Controls - show when there are multiple pages */}
+        {(activeTab === 'all' || activeTab === 'grants') && pagination.grants.totalPages > 1 && (
+          <div className="card p-3 mb-4 flex items-center justify-between">
+            <span className="text-white/80 text-sm">
+              Grants.gov: Showing page {pagination.grants.page} of {pagination.grants.totalPages} ({pagination.grants.total} total results)
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => changePage('grants', pagination.grants.page - 1)}
+                disabled={pagination.grants.page <= 1 || loading}
+                className="px-3 py-1.5 rounded bg-white/20 text-white hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => changePage('grants', pagination.grants.page + 1)}
+                disabled={pagination.grants.page >= pagination.grants.totalPages || loading}
+                className="px-3 py-1.5 rounded bg-white/20 text-white hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+
+        {(activeTab === 'all' || activeTab === 'sam') && pagination.sam.totalPages > 1 && (
+          <div className="card p-3 mb-4 flex items-center justify-between">
+            <span className="text-white/80 text-sm">
+              SAM.gov: Showing page {pagination.sam.page} of {pagination.sam.totalPages} ({pagination.sam.total} total results)
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => changePage('sam', pagination.sam.page - 1)}
+                disabled={pagination.sam.page <= 1 || loading}
+                className="px-3 py-1.5 rounded bg-white/20 text-white hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => changePage('sam', pagination.sam.page + 1)}
+                disabled={pagination.sam.page >= pagination.sam.totalPages || loading}
+                className="px-3 py-1.5 rounded bg-white/20 text-white hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
 
