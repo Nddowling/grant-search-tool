@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monster Truck Gem Collector</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        .game-container {
+            text-align: center;
+        }
+
+        h1 {
+            color: #e94560;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+        }
+
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            width: 800px;
+            margin-bottom: 10px;
+            padding: 10px 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            color: white;
+        }
+
+        .score {
+            font-size: 1.5rem;
+            color: #ffd700;
+        }
+
+        .gems-count {
+            font-size: 1.5rem;
+            color: #00ff88;
+        }
+
+        .time {
+            font-size: 1.5rem;
+            color: #00d4ff;
+        }
+
+        #gameCanvas {
+            border: 4px solid #e94560;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(233, 69, 96, 0.3);
+        }
+
+        .controls {
+            margin-top: 15px;
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .controls span {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin: 0 5px;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .overlay.hidden {
+            display: none;
+        }
+
+        .overlay h2 {
+            color: #e94560;
+            font-size: 3rem;
+            margin-bottom: 20px;
+        }
+
+        .overlay p {
+            color: white;
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+
+        .overlay button {
+            margin-top: 20px;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            background: linear-gradient(135deg, #e94560, #ff6b6b);
+            border: none;
+            border-radius: 30px;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .overlay button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+        }
+
+        .gem-legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 10px;
+            color: #888;
+            font-size: 0.85rem;
+        }
+
+        .gem-legend span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .gem-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .gem-dot.red { background: #ff4444; }
+        .gem-dot.green { background: #44ff44; }
+        .gem-dot.blue { background: #4444ff; }
+        .gem-dot.purple { background: #ff44ff; }
+        .gem-dot.gold { background: #ffd700; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>Monster Truck Gem Collector</h1>
+        <div class="hud">
+            <div class="score">Score: <span id="scoreValue">0</span></div>
+            <div class="gems-count">Gems: <span id="gemsValue">0</span>/<span id="totalGems">0</span></div>
+            <div class="time">Time: <span id="timeValue">0:00</span></div>
+        </div>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="controls">
+            <span>W / Arrow Up</span> Forward
+            <span>S / Arrow Down</span> Reverse
+            <span>A / Arrow Left</span> Turn Left
+            <span>D / Arrow Right</span> Turn Right
+            <span>Space</span> Boost
+        </div>
+        <div class="gem-legend">
+            <span><div class="gem-dot red"></div> 10 pts</span>
+            <span><div class="gem-dot green"></div> 25 pts</span>
+            <span><div class="gem-dot blue"></div> 50 pts</span>
+            <span><div class="gem-dot purple"></div> 100 pts</span>
+            <span><div class="gem-dot gold"></div> 250 pts</span>
+        </div>
+    </div>
+
+    <div id="startOverlay" class="overlay">
+        <h2>Monster Truck Gem Collector</h2>
+        <p>Drive your monster truck and collect all the gems!</p>
+        <p>Avoid hitting the arena walls too hard!</p>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+
+    <div id="gameOverOverlay" class="overlay hidden">
+        <h2>Game Over!</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <p>Gems Collected: <span id="finalGems">0</span></p>
+        <p>Time: <span id="finalTime">0:00</span></p>
+        <button onclick="startGame()">Play Again</button>
+    </div>
+
+    <div id="winOverlay" class="overlay hidden">
+        <h2>You Win!</h2>
+        <p>All gems collected!</p>
+        <p>Final Score: <span id="winScore">0</span></p>
+        <p>Time: <span id="winTime">0:00</span></p>
+        <button onclick="startGame()">Play Again</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game state
+        let gameRunning = false;
+        let score = 0;
+        let gemsCollected = 0;
+        let startTime = 0;
+        let gems = [];
+        let particles = [];
+        let obstacles = [];
+
+        // Monster truck properties
+        const truck = {
+            x: 400,
+            y: 300,
+            width: 60,
+            height: 35,
+            angle: 0,
+            speed: 0,
+            maxSpeed: 5,
+            boostSpeed: 8,
+            acceleration: 0.15,
+            friction: 0.02,
+            turnSpeed: 0.05,
+            health: 100,
+            boosting: false,
+            boostFuel: 100,
+            wheelAngle: 0
+        };
+
+        // Input handling
+        const keys = {
+            up: false,
+            down: false,
+            left: false,
+            right: false,
+            boost: false
+        };
+
+        // Gem types with colors and values
+        const gemTypes = [
+            { color: '#ff4444', glow: '#ff0000', value: 10, size: 12, name: 'Ruby' },
+            { color: '#44ff44', glow: '#00ff00', value: 25, size: 14, name: 'Emerald' },
+            { color: '#4444ff', glow: '#0000ff', value: 50, size: 16, name: 'Sapphire' },
+            { color: '#ff44ff', glow: '#ff00ff', value: 100, size: 18, name: 'Amethyst' },
+            { color: '#ffd700', glow: '#ffaa00', value: 250, size: 20, name: 'Diamond' }
+        ];
+
+        // Initialize gems
+        function initGems() {
+            gems = [];
+            const padding = 60;
+            const gemCount = 20;
+
+            for (let i = 0; i < gemCount; i++) {
+                let validPosition = false;
+                let attempts = 0;
+                let x, y;
+
+                while (!validPosition && attempts < 100) {
+                    x = padding + Math.random() * (canvas.width - padding * 2);
+                    y = padding + Math.random() * (canvas.height - padding * 2);
+
+                    // Check distance from truck spawn
+                    const distFromTruck = Math.sqrt((x - 400) ** 2 + (y - 300) ** 2);
+                    if (distFromTruck < 100) {
+                        attempts++;
+                        continue;
+                    }
+
+                    // Check distance from other gems
+                    validPosition = true;
+                    for (const gem of gems) {
+                        const dist = Math.sqrt((x - gem.x) ** 2 + (y - gem.y) ** 2);
+                        if (dist < 50) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+
+                    // Check distance from obstacles
+                    for (const obs of obstacles) {
+                        const dist = Math.sqrt((x - obs.x) ** 2 + (y - obs.y) ** 2);
+                        if (dist < obs.size + 30) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+
+                    attempts++;
+                }
+
+                // Select gem type (rarer gems less frequent)
+                let typeIndex;
+                const rand = Math.random();
+                if (rand < 0.4) typeIndex = 0;       // 40% Ruby
+                else if (rand < 0.65) typeIndex = 1; // 25% Emerald
+                else if (rand < 0.85) typeIndex = 2; // 20% Sapphire
+                else if (rand < 0.95) typeIndex = 3; // 10% Amethyst
+                else typeIndex = 4;                   // 5% Diamond
+
+                gems.push({
+                    x: x,
+                    y: y,
+                    type: gemTypes[typeIndex],
+                    rotation: Math.random() * Math.PI * 2,
+                    bobOffset: Math.random() * Math.PI * 2,
+                    collected: false
+                });
+            }
+
+            document.getElementById('totalGems').textContent = gems.length;
+        }
+
+        // Initialize obstacles
+        function initObstacles() {
+            obstacles = [];
+            const obstacleCount = 8;
+            const padding = 80;
+
+            for (let i = 0; i < obstacleCount; i++) {
+                let validPosition = false;
+                let attempts = 0;
+                let x, y;
+
+                while (!validPosition && attempts < 100) {
+                    x = padding + Math.random() * (canvas.width - padding * 2);
+                    y = padding + Math.random() * (canvas.height - padding * 2);
+
+                    // Check distance from truck spawn
+                    const distFromTruck = Math.sqrt((x - 400) ** 2 + (y - 300) ** 2);
+                    if (distFromTruck < 150) {
+                        attempts++;
+                        continue;
+                    }
+
+                    // Check distance from other obstacles
+                    validPosition = true;
+                    for (const obs of obstacles) {
+                        const dist = Math.sqrt((x - obs.x) ** 2 + (y - obs.y) ** 2);
+                        if (dist < 120) {
+                            validPosition = false;
+                            break;
+                        }
+                    }
+
+                    attempts++;
+                }
+
+                obstacles.push({
+                    x: x,
+                    y: y,
+                    size: 25 + Math.random() * 20,
+                    type: Math.floor(Math.random() * 3) // 0: rock, 1: tire, 2: barrel
+                });
+            }
+        }
+
+        // Particle system
+        function createParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    life: 1,
+                    color: color,
+                    size: 3 + Math.random() * 4
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.03;
+                p.size *= 0.95;
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            for (const p of particles) {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        // Draw arena
+        function drawArena() {
+            // Arena floor with gradient
+            const gradient = ctx.createRadialGradient(400, 300, 0, 400, 300, 500);
+            gradient.addColorStop(0, '#3d3d5c');
+            gradient.addColorStop(1, '#2d2d4c');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Dirt texture (circles)
+            ctx.fillStyle = 'rgba(60, 50, 40, 0.3)';
+            for (let i = 0; i < 50; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const size = 5 + Math.random() * 15;
+                ctx.beginPath();
+                ctx.arc(x, y, size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Arena walls
+            ctx.strokeStyle = '#e94560';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+
+            // Wall glow effect
+            ctx.shadowColor = '#e94560';
+            ctx.shadowBlur = 15;
+            ctx.strokeRect(20, 20, canvas.width - 40, canvas.height - 40);
+            ctx.shadowBlur = 0;
+
+            // Corner decorations
+            const corners = [[20, 20], [canvas.width - 20, 20], [20, canvas.height - 20], [canvas.width - 20, canvas.height - 20]];
+            corners.forEach(([x, y]) => {
+                ctx.beginPath();
+                ctx.arc(x, y, 15, 0, Math.PI * 2);
+                ctx.fillStyle = '#e94560';
+                ctx.fill();
+            });
+        }
+
+        // Draw obstacles
+        function drawObstacles() {
+            for (const obs of obstacles) {
+                ctx.save();
+                ctx.translate(obs.x, obs.y);
+
+                if (obs.type === 0) {
+                    // Rock
+                    ctx.fillStyle = '#666';
+                    ctx.beginPath();
+                    ctx.moveTo(0, -obs.size);
+                    for (let i = 1; i < 6; i++) {
+                        const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
+                        const radius = obs.size * (0.8 + Math.random() * 0.3);
+                        ctx.lineTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = '#555';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                } else if (obs.type === 1) {
+                    // Tire stack
+                    ctx.fillStyle = '#222';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, obs.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#333';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, obs.size * 0.6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#444';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, obs.size * 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // Barrel
+                    ctx.fillStyle = '#cc4400';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, obs.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#aa3300';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, obs.size * 0.7, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        // Draw gems
+        function drawGems() {
+            const time = Date.now() / 1000;
+
+            for (const gem of gems) {
+                if (gem.collected) continue;
+
+                ctx.save();
+                ctx.translate(gem.x, gem.y + Math.sin(time * 3 + gem.bobOffset) * 5);
+                ctx.rotate(gem.rotation + time);
+
+                // Glow effect
+                ctx.shadowColor = gem.type.glow;
+                ctx.shadowBlur = 20;
+
+                // Draw gem shape (hexagon)
+                const size = gem.type.size;
+                ctx.beginPath();
+                for (let i = 0; i < 6; i++) {
+                    const angle = (i / 6) * Math.PI * 2 - Math.PI / 2;
+                    const x = Math.cos(angle) * size;
+                    const y = Math.sin(angle) * size;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+
+                // Gradient fill
+                const gradient = ctx.createRadialGradient(0, -size/2, 0, 0, 0, size);
+                gradient.addColorStop(0, '#ffffff');
+                gradient.addColorStop(0.3, gem.type.color);
+                gradient.addColorStop(1, gem.type.glow);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+        }
+
+        // Draw monster truck
+        function drawTruck() {
+            ctx.save();
+            ctx.translate(truck.x, truck.y);
+            ctx.rotate(truck.angle);
+
+            // Truck shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.beginPath();
+            ctx.ellipse(5, 8, truck.width / 2, truck.height / 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Wheels
+            const wheelSize = 14;
+            const wheelPositions = [
+                [-truck.width/3, -truck.height/2],
+                [-truck.width/3, truck.height/2],
+                [truck.width/3, -truck.height/2],
+                [truck.width/3, truck.height/2]
+            ];
+
+            // Back wheels
+            wheelPositions.slice(0, 2).forEach(([wx, wy]) => {
+                ctx.save();
+                ctx.translate(wx, wy);
+
+                // Tire
+                ctx.fillStyle = '#222';
+                ctx.beginPath();
+                ctx.arc(0, 0, wheelSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Tire treads
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(angle) * wheelSize * 0.6, Math.sin(angle) * wheelSize * 0.6);
+                    ctx.lineTo(Math.cos(angle) * wheelSize, Math.sin(angle) * wheelSize);
+                    ctx.stroke();
+                }
+
+                // Hub
+                ctx.fillStyle = '#888';
+                ctx.beginPath();
+                ctx.arc(0, 0, wheelSize * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            });
+
+            // Front wheels (with steering)
+            wheelPositions.slice(2).forEach(([wx, wy]) => {
+                ctx.save();
+                ctx.translate(wx, wy);
+                ctx.rotate(truck.wheelAngle);
+
+                // Tire
+                ctx.fillStyle = '#222';
+                ctx.beginPath();
+                ctx.arc(0, 0, wheelSize, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Tire treads
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                for (let i = 0; i < 8; i++) {
+                    const angle = (i / 8) * Math.PI * 2;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(angle) * wheelSize * 0.6, Math.sin(angle) * wheelSize * 0.6);
+                    ctx.lineTo(Math.cos(angle) * wheelSize, Math.sin(angle) * wheelSize);
+                    ctx.stroke();
+                }
+
+                // Hub
+                ctx.fillStyle = '#888';
+                ctx.beginPath();
+                ctx.arc(0, 0, wheelSize * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            });
+
+            // Truck body
+            const bodyGradient = ctx.createLinearGradient(0, -truck.height/2, 0, truck.height/2);
+            bodyGradient.addColorStop(0, '#e94560');
+            bodyGradient.addColorStop(0.5, '#cc3050');
+            bodyGradient.addColorStop(1, '#aa2040');
+            ctx.fillStyle = bodyGradient;
+
+            // Main body
+            ctx.beginPath();
+            ctx.roundRect(-truck.width/2, -truck.height/2, truck.width, truck.height, 5);
+            ctx.fill();
+
+            // Cab
+            ctx.fillStyle = '#222';
+            ctx.beginPath();
+            ctx.roundRect(-truck.width/4, -truck.height/2 + 3, truck.width/2.5, truck.height - 6, 3);
+            ctx.fill();
+
+            // Windshield
+            ctx.fillStyle = 'rgba(100, 200, 255, 0.6)';
+            ctx.beginPath();
+            ctx.roundRect(-truck.width/4 + 2, -truck.height/2 + 5, truck.width/2.5 - 4, truck.height/2 - 4, 2);
+            ctx.fill();
+
+            // Headlights
+            ctx.fillStyle = truck.boosting ? '#ffff00' : '#ffffaa';
+            ctx.shadowColor = truck.boosting ? '#ffff00' : '#ffffaa';
+            ctx.shadowBlur = truck.boosting ? 15 : 5;
+            ctx.beginPath();
+            ctx.arc(truck.width/2 - 5, -truck.height/3, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(truck.width/2 - 5, truck.height/3, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Boost flames
+            if (truck.boosting && truck.speed > 0) {
+                const flameSize = 10 + Math.random() * 10;
+                ctx.fillStyle = '#ff6600';
+                ctx.beginPath();
+                ctx.moveTo(-truck.width/2, -5);
+                ctx.lineTo(-truck.width/2 - flameSize, 0);
+                ctx.lineTo(-truck.width/2, 5);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = '#ffaa00';
+                ctx.beginPath();
+                ctx.moveTo(-truck.width/2, -3);
+                ctx.lineTo(-truck.width/2 - flameSize * 0.6, 0);
+                ctx.lineTo(-truck.width/2, 3);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            ctx.restore();
+
+            // Health bar
+            ctx.fillStyle = '#333';
+            ctx.fillRect(truck.x - 30, truck.y - 35, 60, 8);
+            const healthColor = truck.health > 50 ? '#44ff44' : truck.health > 25 ? '#ffaa00' : '#ff4444';
+            ctx.fillStyle = healthColor;
+            ctx.fillRect(truck.x - 29, truck.y - 34, (truck.health / 100) * 58, 6);
+
+            // Boost bar
+            ctx.fillStyle = '#333';
+            ctx.fillRect(truck.x - 30, truck.y - 45, 60, 6);
+            ctx.fillStyle = '#00aaff';
+            ctx.fillRect(truck.x - 29, truck.y - 44, (truck.boostFuel / 100) * 58, 4);
+        }
+
+        // Update truck physics
+        function updateTruck() {
+            // Acceleration
+            const currentMaxSpeed = truck.boosting && truck.boostFuel > 0 ? truck.boostSpeed : truck.maxSpeed;
+
+            if (keys.up) {
+                truck.speed = Math.min(truck.speed + truck.acceleration, currentMaxSpeed);
+            } else if (keys.down) {
+                truck.speed = Math.max(truck.speed - truck.acceleration, -truck.maxSpeed / 2);
+            } else {
+                // Friction
+                if (truck.speed > 0) {
+                    truck.speed = Math.max(0, truck.speed - truck.friction);
+                } else if (truck.speed < 0) {
+                    truck.speed = Math.min(0, truck.speed + truck.friction);
+                }
+            }
+
+            // Steering
+            const steerAmount = truck.turnSpeed * (Math.abs(truck.speed) / truck.maxSpeed);
+            if (keys.left) {
+                truck.angle -= steerAmount * Math.sign(truck.speed || 1);
+                truck.wheelAngle = Math.max(-0.4, truck.wheelAngle - 0.1);
+            } else if (keys.right) {
+                truck.angle += steerAmount * Math.sign(truck.speed || 1);
+                truck.wheelAngle = Math.min(0.4, truck.wheelAngle + 0.1);
+            } else {
+                truck.wheelAngle *= 0.8;
+            }
+
+            // Boost management
+            truck.boosting = keys.boost && truck.boostFuel > 0;
+            if (truck.boosting && truck.speed > 0) {
+                truck.boostFuel = Math.max(0, truck.boostFuel - 0.5);
+            } else if (!truck.boosting) {
+                truck.boostFuel = Math.min(100, truck.boostFuel + 0.1);
+            }
+
+            // Movement
+            truck.x += Math.cos(truck.angle) * truck.speed;
+            truck.y += Math.sin(truck.angle) * truck.speed;
+
+            // Wall collision
+            const padding = 40;
+            let hitWall = false;
+
+            if (truck.x < padding) {
+                truck.x = padding;
+                truck.speed *= -0.5;
+                hitWall = true;
+            } else if (truck.x > canvas.width - padding) {
+                truck.x = canvas.width - padding;
+                truck.speed *= -0.5;
+                hitWall = true;
+            }
+
+            if (truck.y < padding) {
+                truck.y = padding;
+                truck.speed *= -0.5;
+                hitWall = true;
+            } else if (truck.y > canvas.height - padding) {
+                truck.y = canvas.height - padding;
+                truck.speed *= -0.5;
+                hitWall = true;
+            }
+
+            if (hitWall) {
+                const damage = Math.abs(truck.speed) * 2;
+                truck.health -= damage;
+                createParticles(truck.x, truck.y, '#ff6600', 10);
+            }
+
+            // Obstacle collision
+            for (const obs of obstacles) {
+                const dist = Math.sqrt((truck.x - obs.x) ** 2 + (truck.y - obs.y) ** 2);
+                if (dist < obs.size + 25) {
+                    const angle = Math.atan2(truck.y - obs.y, truck.x - obs.x);
+                    const overlap = obs.size + 25 - dist;
+                    truck.x += Math.cos(angle) * overlap;
+                    truck.y += Math.sin(angle) * overlap;
+                    truck.speed *= -0.3;
+                    truck.health -= Math.abs(truck.speed) * 3;
+                    createParticles(truck.x, truck.y, '#888', 8);
+                }
+            }
+
+            // Gem collection
+            for (const gem of gems) {
+                if (gem.collected) continue;
+
+                const dist = Math.sqrt((truck.x - gem.x) ** 2 + (truck.y - gem.y) ** 2);
+                if (dist < gem.type.size + 30) {
+                    gem.collected = true;
+                    score += gem.type.value;
+                    gemsCollected++;
+                    createParticles(gem.x, gem.y, gem.type.color, 15);
+                    updateHUD();
+
+                    // Check win condition
+                    if (gemsCollected >= gems.length) {
+                        winGame();
+                    }
+                }
+            }
+
+            // Check game over
+            if (truck.health <= 0) {
+                gameOver();
+            }
+        }
+
+        // Update HUD
+        function updateHUD() {
+            document.getElementById('scoreValue').textContent = score;
+            document.getElementById('gemsValue').textContent = gemsCollected;
+
+            if (gameRunning) {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                document.getElementById('timeValue').textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw everything
+            drawArena();
+            drawObstacles();
+            drawGems();
+            drawParticles();
+            drawTruck();
+
+            // Update
+            updateTruck();
+            updateParticles();
+            updateHUD();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start game
+        function startGame() {
+            // Reset truck
+            truck.x = 400;
+            truck.y = 300;
+            truck.angle = 0;
+            truck.speed = 0;
+            truck.health = 100;
+            truck.boostFuel = 100;
+            truck.wheelAngle = 0;
+
+            // Reset score
+            score = 0;
+            gemsCollected = 0;
+            startTime = Date.now();
+
+            // Initialize level
+            initObstacles();
+            initGems();
+            particles = [];
+
+            // Hide overlays
+            document.getElementById('startOverlay').classList.add('hidden');
+            document.getElementById('gameOverOverlay').classList.add('hidden');
+            document.getElementById('winOverlay').classList.add('hidden');
+
+            // Start game
+            gameRunning = true;
+            updateHUD();
+            gameLoop();
+        }
+
+        // Game over
+        function gameOver() {
+            gameRunning = false;
+
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('finalGems').textContent = `${gemsCollected}/${gems.length}`;
+            document.getElementById('finalTime').textContent = timeStr;
+            document.getElementById('gameOverOverlay').classList.remove('hidden');
+        }
+
+        // Win game
+        function winGame() {
+            gameRunning = false;
+
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            // Time bonus
+            const timeBonus = Math.max(0, 1000 - elapsed * 5);
+            score += timeBonus;
+
+            document.getElementById('winScore').textContent = score + ` (+${timeBonus} time bonus)`;
+            document.getElementById('winTime').textContent = timeStr;
+            document.getElementById('winOverlay').classList.remove('hidden');
+        }
+
+        // Input event listeners
+        document.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case 'KeyW':
+                case 'ArrowUp':
+                    keys.up = true;
+                    e.preventDefault();
+                    break;
+                case 'KeyS':
+                case 'ArrowDown':
+                    keys.down = true;
+                    e.preventDefault();
+                    break;
+                case 'KeyA':
+                case 'ArrowLeft':
+                    keys.left = true;
+                    e.preventDefault();
+                    break;
+                case 'KeyD':
+                case 'ArrowRight':
+                    keys.right = true;
+                    e.preventDefault();
+                    break;
+                case 'Space':
+                    keys.boost = true;
+                    e.preventDefault();
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            switch(e.code) {
+                case 'KeyW':
+                case 'ArrowUp':
+                    keys.up = false;
+                    break;
+                case 'KeyS':
+                case 'ArrowDown':
+                    keys.down = false;
+                    break;
+                case 'KeyA':
+                case 'ArrowLeft':
+                    keys.left = false;
+                    break;
+                case 'KeyD':
+                case 'ArrowRight':
+                    keys.right = false;
+                    break;
+                case 'Space':
+                    keys.boost = false;
+                    break;
+            }
+        });
+
+        // Prevent arrow keys from scrolling
+        window.addEventListener('keydown', (e) => {
+            if(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+                e.preventDefault();
+            }
+        });
+    </script>
+</body>
+</html>
