@@ -14,16 +14,25 @@ const GRANT_STATUSES = [
 
 // Data source configuration
 const DATA_SOURCES = {
-  grants: { name: 'Grants.gov', color: 'bg-blue-500', badge: 'bg-blue-100 text-blue-800', category: 'opportunities' },
-  sam: { name: 'SAM.gov', color: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-800', category: 'opportunities' },
-  usaspending: { name: 'USASpending', color: 'bg-indigo-500', badge: 'bg-indigo-100 text-indigo-800', category: 'awards' },
-  nihReporter: { name: 'NIH RePORTER', color: 'bg-red-500', badge: 'bg-red-100 text-red-800', category: 'research' },
-  nsf: { name: 'NSF Awards', color: 'bg-orange-500', badge: 'bg-orange-100 text-orange-800', category: 'research' },
-  federalReporter: { name: 'Federal RePORTER', color: 'bg-pink-500', badge: 'bg-pink-100 text-pink-800', category: 'research' },
-  propublica: { name: 'ProPublica 990s', color: 'bg-cyan-500', badge: 'bg-cyan-100 text-cyan-800', category: 'nonprofits' },
-  fema: { name: 'FEMA Grants', color: 'bg-amber-500', badge: 'bg-amber-100 text-amber-800', category: 'disaster' },
-  regulations: { name: 'Regulations.gov', color: 'bg-violet-500', badge: 'bg-violet-100 text-violet-800', category: 'regulatory' },
-  california: { name: 'California Grants', color: 'bg-teal-500', badge: 'bg-teal-100 text-teal-800', category: 'state' },
+  grants: { name: 'Grants.gov', color: 'bg-blue-500', badge: 'bg-blue-100 text-blue-800', category: 'opportunities', type: 'grants' },
+  sam: { name: 'SAM.gov', color: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-800', category: 'opportunities', type: 'both' },
+  usaspending: { name: 'USASpending', color: 'bg-indigo-500', badge: 'bg-indigo-100 text-indigo-800', category: 'awards', type: 'grants' },
+  nihReporter: { name: 'NIH RePORTER', color: 'bg-red-500', badge: 'bg-red-100 text-red-800', category: 'research', type: 'grants' },
+  nsf: { name: 'NSF Awards', color: 'bg-orange-500', badge: 'bg-orange-100 text-orange-800', category: 'research', type: 'grants' },
+  federalReporter: { name: 'Federal RePORTER', color: 'bg-pink-500', badge: 'bg-pink-100 text-pink-800', category: 'research', type: 'grants' },
+  propublica: { name: 'ProPublica 990s', color: 'bg-cyan-500', badge: 'bg-cyan-100 text-cyan-800', category: 'nonprofits', type: 'nonprofits' },
+  fema: { name: 'FEMA Grants', color: 'bg-amber-500', badge: 'bg-amber-100 text-amber-800', category: 'disaster', type: 'grants' },
+  regulations: { name: 'Regulations.gov', color: 'bg-violet-500', badge: 'bg-violet-100 text-violet-800', category: 'regulatory', type: 'regulatory' },
+  california: { name: 'California Grants', color: 'bg-teal-500', badge: 'bg-teal-100 text-teal-800', category: 'state', type: 'grants' },
+};
+
+// Search mode presets
+const SEARCH_MODES = {
+  all: { label: 'All Databases', description: 'Search all 10 databases' },
+  grants: { label: 'Grants Only', description: 'Federal & state grant opportunities' },
+  contracts: { label: 'Contracts Only', description: 'SAM.gov contracts & solicitations' },
+  research: { label: 'Research Only', description: 'NIH, NSF, Federal RePORTER' },
+  custom: { label: 'Custom', description: 'Select specific databases' },
 };
 
 // Category groups for filtering
@@ -74,6 +83,7 @@ export default function Home() {
     nsf: true, federalReporter: true, propublica: true, fema: true,
     regulations: true, california: true
   });
+  const [searchMode, setSearchMode] = useState('all');
 
   // Load favorites from localStorage on mount
   useEffect(() => {
@@ -609,7 +619,67 @@ export default function Home() {
   };
 
   const toggleSource = (source) => {
+    setSearchMode('custom'); // Switch to custom mode when manually toggling
     setEnabledSources(prev => ({ ...prev, [source]: !prev[source] }));
+  };
+
+  const changeSearchMode = (mode) => {
+    setSearchMode(mode);
+    switch (mode) {
+      case 'all':
+        setEnabledSources({
+          grants: true, sam: true, usaspending: true, nihReporter: true,
+          nsf: true, federalReporter: true, propublica: true, fema: true,
+          regulations: true, california: true
+        });
+        setSamType('g'); // Default to grants for SAM.gov
+        break;
+      case 'grants':
+        setEnabledSources({
+          grants: true, sam: true, usaspending: true, nihReporter: true,
+          nsf: true, federalReporter: true, propublica: false, fema: true,
+          regulations: false, california: true
+        });
+        setSamType('g'); // Grants only on SAM.gov
+        break;
+      case 'contracts':
+        // Only SAM.gov has contracts - disable all grant databases
+        setEnabledSources({
+          grants: false, sam: true, usaspending: false, nihReporter: false,
+          nsf: false, federalReporter: false, propublica: false, fema: false,
+          regulations: false, california: false
+        });
+        setSamType('o'); // Contracts only on SAM.gov
+        break;
+      case 'research':
+        setEnabledSources({
+          grants: false, sam: false, usaspending: false, nihReporter: true,
+          nsf: true, federalReporter: true, propublica: false, fema: false,
+          regulations: false, california: false
+        });
+        break;
+      case 'custom':
+        // Keep current selections
+        break;
+    }
+  };
+
+  const selectAllSources = () => {
+    setSearchMode('all');
+    setEnabledSources({
+      grants: true, sam: true, usaspending: true, nihReporter: true,
+      nsf: true, federalReporter: true, propublica: true, fema: true,
+      regulations: true, california: true
+    });
+  };
+
+  const deselectAllSources = () => {
+    setSearchMode('custom');
+    setEnabledSources({
+      grants: false, sam: false, usaspending: false, nihReporter: false,
+      nsf: false, federalReporter: false, propublica: false, fema: false,
+      regulations: false, california: false
+    });
   };
 
   const favoritesStats = getFavoritesStats();
@@ -681,9 +751,49 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Source toggles */}
+          {/* Search Mode Selector */}
           <div className="mb-4">
-            <label className="block text-white/80 text-sm mb-2">Data Sources</label>
+            <label className="block text-white/80 text-sm mb-2">What are you looking for?</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {Object.entries(SEARCH_MODES).map(([key, mode]) => (
+                <button
+                  key={key}
+                  onClick={() => changeSearchMode(key)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    searchMode === key
+                      ? 'bg-white text-blue-900'
+                      : 'bg-white/20 text-white hover:bg-white/30'
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-white/60 mb-3">
+              {SEARCH_MODES[searchMode]?.description}
+              {searchMode === 'contracts' && ' (Note: Only SAM.gov has federal contracts)'}
+            </p>
+          </div>
+
+          {/* Database Selection */}
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-white/80 text-sm">Databases to Search</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={selectAllSources}
+                  className="text-xs text-white/60 hover:text-white underline"
+                >
+                  Select All
+                </button>
+                <button
+                  onClick={deselectAllSources}
+                  className="text-xs text-white/60 hover:text-white underline"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
             <div className="flex flex-wrap gap-2">
               {Object.entries(DATA_SOURCES).map(([key, source]) => (
                 <button
@@ -692,23 +802,36 @@ export default function Home() {
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                     enabledSources[key]
                       ? `${source.color} text-white`
-                      : 'bg-white/10 text-white/50'
+                      : 'bg-white/10 text-white/50 line-through'
                   }`}
                 >
                   {source.name} {enabledSources[key] ? '✓' : ''}
                 </button>
               ))}
             </div>
+            <p className="text-xs text-white/50 mt-2">
+              {Object.values(enabledSources).filter(Boolean).length} of 10 databases selected
+            </p>
           </div>
 
           {/* Filters and search button */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-white/80 text-sm mb-2">SAM.gov Type</label>
+              <label className="block text-white/80 text-sm mb-2">
+                SAM.gov Type
+                {!enabledSources.sam && <span className="text-white/40 ml-1">(disabled)</span>}
+              </label>
               <select
                 className="input-field"
                 value={samType}
-                onChange={(e) => setSamType(e.target.value)}
+                onChange={(e) => {
+                  setSamType(e.target.value);
+                  // Auto-switch mode based on SAM.gov type selection
+                  if (e.target.value === 'o') {
+                    changeSearchMode('contracts');
+                  }
+                }}
+                disabled={!enabledSources.sam}
               >
                 <option value="g">Grants Only</option>
                 <option value="o">Contracts Only</option>
@@ -732,16 +855,21 @@ export default function Home() {
             <div className="md:col-span-2 flex items-end gap-4">
               <button
                 onClick={() => searchGrants()}
-                disabled={loading}
+                disabled={loading || Object.values(enabledSources).filter(Boolean).length === 0}
                 className="btn-primary flex items-center gap-2 flex-1"
               >
                 {loading ? (
                   <>
                     <div className="loading-spinner"></div>
-                    Searching {Object.values(enabledSources).filter(Boolean).length} sources...
+                    Searching {Object.values(enabledSources).filter(Boolean).length} source{Object.values(enabledSources).filter(Boolean).length !== 1 ? 's' : ''}...
                   </>
                 ) : (
-                  <>Search All Databases</>
+                  <>
+                    {searchMode === 'contracts' ? 'Search Contracts' :
+                     searchMode === 'research' ? 'Search Research Grants' :
+                     searchMode === 'grants' ? 'Search Grants' :
+                     `Search ${Object.values(enabledSources).filter(Boolean).length} Database${Object.values(enabledSources).filter(Boolean).length !== 1 ? 's' : ''}`}
+                  </>
                 )}
               </button>
               <button
@@ -751,6 +879,12 @@ export default function Home() {
                   setEligibility('');
                   setSamType('g');
                   setSortBy('relevance');
+                  setSearchMode('all');
+                  setEnabledSources({
+                    grants: true, sam: true, usaspending: true, nihReporter: true,
+                    nsf: true, federalReporter: true, propublica: true, fema: true,
+                    regulations: true, california: true
+                  });
                   setResults({
                     grants: [], sam: [], usaspending: [], nihReporter: [],
                     nsf: [], federalReporter: [], propublica: [], fema: [],
@@ -772,6 +906,58 @@ export default function Home() {
         {errors.general && (
           <div className="bg-red-500/20 border border-red-500 text-red-200 px-4 py-3 rounded-lg mb-6">
             {errors.general}
+          </div>
+        )}
+
+        {/* Source Results Summary - Shows results breakdown per database */}
+        {(allResults.length > 0 || Object.keys(errors).filter(k => k !== 'general').length > 0) && (
+          <div className="card p-4 mb-6">
+            <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+              <span>Search Results by Source</span>
+              <span className="text-sm font-normal text-white/70">({totalResults} total across all databases)</span>
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              {Object.entries(DATA_SOURCES).map(([key, source]) => {
+                const count = results[key]?.length || 0;
+                const total = pagination[key]?.total || 0;
+                const hasError = errors[key];
+                const isEnabled = enabledSources[key];
+
+                return (
+                  <div
+                    key={key}
+                    className={`p-2 rounded-lg text-sm ${
+                      hasError
+                        ? 'bg-red-500/20 border border-red-500/50'
+                        : count > 0
+                        ? 'bg-white/10'
+                        : 'bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`font-medium ${hasError ? 'text-red-300' : 'text-white'}`}>
+                        {source.name}
+                      </span>
+                      <span className={`font-bold ${
+                        hasError ? 'text-red-400' : count > 0 ? 'text-green-400' : 'text-white/50'
+                      }`}>
+                        {!isEnabled ? 'OFF' : hasError ? '!' : count > 0 ? count : '0'}
+                      </span>
+                    </div>
+                    {hasError && (
+                      <p className="text-xs text-red-300 mt-1 truncate" title={errors[key]}>
+                        {errors[key]}
+                      </p>
+                    )}
+                    {!hasError && count > 0 && total > count && (
+                      <p className="text-xs text-white/50 mt-1">
+                        {total} total available
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
