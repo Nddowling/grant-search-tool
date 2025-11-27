@@ -111,20 +111,24 @@ export default function Home() {
     try {
       // Check for existing user
       const savedUser = localStorage.getItem('grantSearchUser');
+      console.log('Loading from localStorage - savedUser:', savedUser);
       if (savedUser) {
         setUserInfo(JSON.parse(savedUser));
       }
 
       // Load search count for anonymous users
       const savedCount = localStorage.getItem('grantSearchCount');
+      console.log('Loading from localStorage - savedCount:', savedCount);
       if (savedCount) {
         const countData = JSON.parse(savedCount);
         // Reset count if it's a new day
         const today = new Date().toDateString();
         if (countData.date === today) {
+          console.log('Setting search count to:', countData.count);
           setSearchCount(countData.count);
         } else {
           // New day, reset count
+          console.log('New day - resetting count');
           localStorage.setItem('grantSearchCount', JSON.stringify({ count: 0, date: today }));
           setSearchCount(0);
         }
@@ -323,8 +327,12 @@ export default function Home() {
       return;
     }
 
+    // Debug logging
+    console.log('Search triggered - searchCount:', searchCount, 'userInfo:', userInfo, 'limit:', FREE_SEARCH_LIMIT);
+
     // Check if anonymous user has exceeded free search limit
     if (!userInfo && searchCount >= FREE_SEARCH_LIMIT) {
+      console.log('Showing lead modal - limit reached');
       setShowLeadModal(true);
       return;
     }
@@ -454,6 +462,7 @@ export default function Home() {
       // Increment search count for anonymous users
       if (!userInfo) {
         const newCount = searchCount + 1;
+        console.log('Incrementing search count from', searchCount, 'to', newCount);
         setSearchCount(newCount);
         const today = new Date().toDateString();
         localStorage.setItem('grantSearchCount', JSON.stringify({ count: newCount, date: today }));
