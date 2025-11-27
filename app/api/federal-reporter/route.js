@@ -74,6 +74,7 @@ export async function GET(request) {
     };
 
     console.log(`Federal RePORTER (via NIH API) search: keyword="${keyword}", page=${page}`);
+    console.log(`Federal RePORTER request body:`, JSON.stringify(requestBody, null, 2));
 
     const response = await fetchWithTimeout(
       'https://api.reporter.nih.gov/v2/projects/search',
