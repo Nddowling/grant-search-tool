@@ -775,6 +775,58 @@ export default function Home() {
           </div>
         )}
 
+        {/* Source Results Summary - Shows results breakdown per database */}
+        {(allResults.length > 0 || Object.keys(errors).filter(k => k !== 'general').length > 0) && (
+          <div className="card p-4 mb-6">
+            <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+              <span>Search Results by Source</span>
+              <span className="text-sm font-normal text-white/70">({totalResults} total across all databases)</span>
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              {Object.entries(DATA_SOURCES).map(([key, source]) => {
+                const count = results[key]?.length || 0;
+                const total = pagination[key]?.total || 0;
+                const hasError = errors[key];
+                const isEnabled = enabledSources[key];
+
+                return (
+                  <div
+                    key={key}
+                    className={`p-2 rounded-lg text-sm ${
+                      hasError
+                        ? 'bg-red-500/20 border border-red-500/50'
+                        : count > 0
+                        ? 'bg-white/10'
+                        : 'bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`font-medium ${hasError ? 'text-red-300' : 'text-white'}`}>
+                        {source.name}
+                      </span>
+                      <span className={`font-bold ${
+                        hasError ? 'text-red-400' : count > 0 ? 'text-green-400' : 'text-white/50'
+                      }`}>
+                        {!isEnabled ? 'OFF' : hasError ? '!' : count > 0 ? count : '0'}
+                      </span>
+                    </div>
+                    {hasError && (
+                      <p className="text-xs text-red-300 mt-1 truncate" title={errors[key]}>
+                        {errors[key]}
+                      </p>
+                    )}
+                    {!hasError && count > 0 && total > count && (
+                      <p className="text-xs text-white/50 mt-1">
+                        {total} total available
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Results tabs */}
         {(allResults.length > 0 || favorites.length > 0) && (
           <>
