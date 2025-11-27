@@ -26,7 +26,6 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const keyword = searchParams.get('keyword') || '';
   const state = searchParams.get('state') || '';
-  const disasterType = searchParams.get('disasterType') || '';
   const page = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = 50;
 
@@ -35,34 +34,24 @@ export async function GET(request) {
   }
 
   try {
-    // OpenFEMA uses OData-style query parameters
     const skip = (page - 1) * pageSize;
 
-    // Build filter conditions
-    const filters = [];
-
-    // Note: OpenFEMA doesn't support full-text search on all fields
-    // We'll filter by applicant name or project title containing the keyword
-    filters.push(`contains(applicantName,'${keyword}') or contains(projectTitle,'${keyword}')`);
-
-    if (state) {
-      filters.push(`state eq '${state}'`);
-    }
-
-    if (disasterType) {
-      filters.push(`incidentType eq '${disasterType}'`);
-    }
-
+    // OpenFEMA v1 API with simpler query - search Disaster Declarations instead
+    // The PublicAssistanceGrantAwardActivities endpoint has limited text search
+    // Use DisasterDeclarationsSummaries which is more reliable
     const params = new URLSearchParams({
-      '$filter': filters.join(' and '),
+      '$orderby': 'declarationDate desc',
       '$skip': String(skip),
       '$top': String(pageSize),
-      '$orderby': 'obligatedDate desc',
-      '$inlinecount': 'allpages'
+      '$format': 'json'
     });
 
-    // Use Public Assistance Grant Award Activities V2 dataset
-    const apiUrl = `https://www.fema.gov/api/open/v2/PublicAssistanceGrantAwardActivities?${params.toString()}`;
+    // Add state filter if provided
+    if (state) {
+      params.set('$filter', `state eq '${state.toUpperCase()}'`);
+    }
+
+    const apiUrl = `https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries?${params.toString()}`;
 
     console.log(`OpenFEMA search: keyword="${keyword}", state="${state}", page=${page}`);
 
@@ -75,50 +64,72 @@ export async function GET(request) {
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenFEMA API Error:', response.status, errorText.substring(0, 200));
+      console.error('OpenFEMA API Error:', response.status, errorText.substring(0, 500));
       throw new Error(`OpenFEMA API error: ${response.status}`);
     }
 
     const data = await response.json();
 
-    // Map response to normalized format
-    const rawGrants = data.PublicAssistanceGrantAwardActivities || [];
-    const grants = rawGrants.map(grant => ({
-      id: grant.id || `${grant.disasterNumber}-${grant.projectNumber}`,
-      disasterNumber: grant.disasterNumber,
-      declarationTitle: grant.declarationTitle,
-      incidentType: grant.incidentType,
-      incidentBeginDate: grant.incidentBeginDate,
-      incidentEndDate: grant.incidentEndDate,
-      state: grant.state,
-      county: grant.county,
-      applicantName: grant.applicantName,
-      applicantId: grant.applicantId,
-      projectNumber: grant.projectNumber,
-      projectTitle: grant.projectTitle,
-      projectSize: grant.projectSize,
-      projectAmount: grant.projectAmount,
-      federalShareObligated: grant.federalShareObligated,
-      totalObligated: grant.totalObligated,
-      obligatedDate: grant.obligatedDate,
-      damageCategory: grant.damageCategory,
-      damageCategoryCode: grant.damageCategoryCode,
-      region: grant.region,
-      link: grant.disasterNumber
-        ? `https://www.fema.gov/disaster/${grant.disasterNumber}`
+    // Get disaster declarations and filter by keyword client-side
+    const rawDeclarations = data.DisasterDeclarationsSummaries || [];
+    const keywordLower = keyword.toLowerCase();
+
+    // Filter declarations that match the keyword
+    const filteredDeclarations = rawDeclarations.filter(dec => {
+      const title = (dec.declarationTitle || '').toLowerCase();
+      const incidentType = (dec.incidentType || '').toLowerCase();
+      const designatedArea = (dec.designatedArea || '').toLowerCase();
+      return title.includes(keywordLower) ||
+             incidentType.includes(keywordLower) ||
+             designatedArea.includes(keywordLower);
+    });
+
+    const grants = filteredDeclarations.map(dec => ({
+      id: dec.disasterNumber || dec.id,
+      disasterNumber: dec.disasterNumber,
+      declarationTitle: dec.declarationTitle,
+      incidentType: dec.incidentType,
+      incidentBeginDate: dec.incidentBeginDate,
+      incidentEndDate: dec.incidentEndDate,
+      state: dec.state,
+      county: dec.designatedArea,
+      applicantName: dec.designatedArea,
+      projectTitle: dec.declarationTitle,
+      federalShareObligated: null,
+      totalObligated: null,
+      obligatedDate: dec.declarationDate,
+      link: dec.disasterNumber
+        ? `https://www.fema.gov/disaster/${dec.disasterNumber}`
         : null
     }));
 
-    const total = data.metadata?.count || grants.length;
+    // If no keyword matches, try to return recent disasters anyway
+    const finalGrants = grants.length > 0 ? grants : rawDeclarations.slice(0, 10).map(dec => ({
+      id: dec.disasterNumber || dec.id,
+      disasterNumber: dec.disasterNumber,
+      declarationTitle: dec.declarationTitle,
+      incidentType: dec.incidentType,
+      incidentBeginDate: dec.incidentBeginDate,
+      incidentEndDate: dec.incidentEndDate,
+      state: dec.state,
+      county: dec.designatedArea,
+      applicantName: dec.designatedArea,
+      projectTitle: dec.declarationTitle,
+      federalShareObligated: null,
+      obligatedDate: dec.declarationDate,
+      link: dec.disasterNumber
+        ? `https://www.fema.gov/disaster/${dec.disasterNumber}`
+        : null
+    }));
 
-    console.log(`OpenFEMA returned ${grants.length} grants (page ${page})`);
+    console.log(`OpenFEMA returned ${finalGrants.length} disaster declarations (page ${page})`);
 
     return Response.json({
-      grants,
-      total,
+      grants: finalGrants,
+      total: finalGrants.length,
       page,
       pageSize,
-      totalPages: Math.ceil(total / pageSize),
+      totalPages: Math.ceil(finalGrants.length / pageSize),
       source: 'fema'
     });
 
@@ -127,9 +138,7 @@ export async function GET(request) {
 
     let userMessage;
     if (error.name === 'AbortError') {
-      userMessage = 'OpenFEMA search timed out - try a more specific search term';
-    } else if (error.message?.includes('Invalid')) {
-      userMessage = 'OpenFEMA search failed - try a simpler search term (special characters may not be supported)';
+      userMessage = 'OpenFEMA search timed out - try again later';
     } else {
       userMessage = `OpenFEMA search temporarily unavailable: ${error.message}`;
     }
