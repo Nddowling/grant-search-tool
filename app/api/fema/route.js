@@ -54,6 +54,7 @@ export async function GET(request) {
     const apiUrl = `https://www.fema.gov/api/open/v2/DisasterDeclarationsSummaries?${params.toString()}`;
 
     console.log(`OpenFEMA search: keyword="${keyword}", state="${state}", page=${page}`);
+    console.log(`OpenFEMA URL: ${apiUrl}`);
 
     const response = await fetchWithTimeout(apiUrl, {
       method: 'GET',
