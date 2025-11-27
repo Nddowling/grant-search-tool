@@ -785,11 +785,47 @@ export default function Home() {
       // Clear the search count since user is now registered
       localStorage.removeItem('grantSearchCount');
       setSearchCount(0);
+      setHasSearchedOnce(false);
 
       return { success: true };
     } catch (error) {
       console.error('Lead submission error:', error);
       return { success: false, error: error.message };
+    }
+  };
+
+  // Handle returning user login
+  const handleLogin = async (email) => {
+    try {
+      const response = await fetch(`/api/leads?email=${encodeURIComponent(email)}`);
+      const data = await response.json();
+
+      if (data.exists && data.user) {
+        // User found - restore their session
+        const user = {
+          email: data.user.email,
+          firstName: data.user.firstName,
+          lastName: data.user.lastName,
+          company: data.user.company,
+          createdAt: data.user.createdAt,
+        };
+
+        setUserInfo(user);
+        localStorage.setItem('grantSearchUser', JSON.stringify(user));
+
+        // Close modal and reset state
+        setShowLeadModal(false);
+        localStorage.removeItem('grantSearchCount');
+        setSearchCount(0);
+        setHasSearchedOnce(false);
+
+        return { success: true };
+      } else {
+        return { success: false, error: 'Email not found. Please sign up first.' };
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: 'Something went wrong. Please try again.' };
     }
   };
 
@@ -1502,6 +1538,7 @@ export default function Home() {
       <LeadCaptureModal
         isOpen={showLeadModal}
         onSubmit={handleLeadSubmit}
+        onLogin={handleLogin}
         totalResults={totalResults}
       />
     </main>
