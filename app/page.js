@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LeadCaptureModal from './components/LeadCaptureModal';
+
+// Free search limit for anonymous users
+const FREE_SEARCH_LIMIT = 3;
 
 // Grant status options for tracking
 const GRANT_STATUSES = [
@@ -85,6 +89,11 @@ export default function Home() {
   });
   const [searchMode, setSearchMode] = useState('all');
 
+  // Lead capture / search gating state
+  const [searchCount, setSearchCount] = useState(0);
+  const [showLeadModal, setShowLeadModal] = useState(false);
+  const [userInfo, setUserInfo] = useState(null); // null = anonymous, object = registered
+
   // Load favorites from localStorage on mount
   useEffect(() => {
     try {
@@ -94,6 +103,34 @@ export default function Home() {
       }
     } catch (e) {
       console.error('Error loading favorites:', e);
+    }
+  }, []);
+
+  // Load search count and user info from localStorage on mount
+  useEffect(() => {
+    try {
+      // Check for existing user
+      const savedUser = localStorage.getItem('grantSearchUser');
+      if (savedUser) {
+        setUserInfo(JSON.parse(savedUser));
+      }
+
+      // Load search count for anonymous users
+      const savedCount = localStorage.getItem('grantSearchCount');
+      if (savedCount) {
+        const countData = JSON.parse(savedCount);
+        // Reset count if it's a new day
+        const today = new Date().toDateString();
+        if (countData.date === today) {
+          setSearchCount(countData.count);
+        } else {
+          // New day, reset count
+          localStorage.setItem('grantSearchCount', JSON.stringify({ count: 0, date: today }));
+          setSearchCount(0);
+        }
+      }
+    } catch (e) {
+      console.error('Error loading user data:', e);
     }
   }, []);
 
@@ -286,6 +323,12 @@ export default function Home() {
       return;
     }
 
+    // Check if anonymous user has exceeded free search limit
+    if (!userInfo && searchCount >= FREE_SEARCH_LIMIT) {
+      setShowLeadModal(true);
+      return;
+    }
+
     setLoading(true);
     setErrors({});
 
@@ -407,6 +450,14 @@ export default function Home() {
       setResults(newResults);
       setErrors(newErrors);
       setPagination(newPagination);
+
+      // Increment search count for anonymous users
+      if (!userInfo) {
+        const newCount = searchCount + 1;
+        setSearchCount(newCount);
+        const today = new Date().toDateString();
+        localStorage.setItem('grantSearchCount', JSON.stringify({ count: newCount, date: today }));
+      }
 
     } catch (err) {
       setErrors({ general: 'Search failed. Please try again.' });
@@ -682,6 +733,50 @@ export default function Home() {
     });
   };
 
+  // Handle lead capture form submission
+  const handleLeadSubmit = async (formData) => {
+    try {
+      const response = await fetch('/api/leads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create account');
+      }
+
+      // Save user info to state and localStorage
+      const user = {
+        email: formData.email,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        company: formData.company,
+        token: data.user?.token,
+        createdAt: new Date().toISOString(),
+      };
+
+      setUserInfo(user);
+      localStorage.setItem('grantSearchUser', JSON.stringify(user));
+
+      // Close the modal
+      setShowLeadModal(false);
+
+      // Clear the search count since user is now registered
+      localStorage.removeItem('grantSearchCount');
+      setSearchCount(0);
+
+      return { success: true };
+    } catch (error) {
+      console.error('Lead submission error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
   const favoritesStats = getFavoritesStats();
   const filteredResults = getFilteredResults();
 
@@ -698,6 +793,43 @@ export default function Home() {
           <p className="text-sm text-blue-300 mt-2">
             Grants.gov | SAM.gov | USASpending | NIH | NSF | Federal RePORTER | ProPublica | FEMA | Regulations.gov | California
           </p>
+
+          {/* User status indicator */}
+          <div className="mt-4">
+            {userInfo ? (
+              <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-2 rounded-lg text-sm">
+                <span className="text-lg">✓</span>
+                <span>Welcome back, {userInfo.firstName}!</span>
+                <button
+                  onClick={() => {
+                    setUserInfo(null);
+                    localStorage.removeItem('grantSearchUser');
+                    setSearchCount(0);
+                    localStorage.removeItem('grantSearchCount');
+                  }}
+                  className="ml-2 text-green-300 hover:text-white underline text-xs"
+                >
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 bg-white/10 text-white/80 px-4 py-2 rounded-lg text-sm">
+                <span>
+                  {FREE_SEARCH_LIMIT - searchCount > 0
+                    ? `${FREE_SEARCH_LIMIT - searchCount} free search${FREE_SEARCH_LIMIT - searchCount !== 1 ? 'es' : ''} remaining`
+                    : 'Free searches used'}
+                </span>
+                {searchCount >= FREE_SEARCH_LIMIT && (
+                  <button
+                    onClick={() => setShowLeadModal(true)}
+                    className="ml-2 bg-white text-blue-900 px-3 py-1 rounded font-medium hover:bg-blue-100"
+                  >
+                    Sign Up Free
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="card p-6 mb-6">
@@ -1311,6 +1443,15 @@ export default function Home() {
       <footer className="text-center text-white/50 text-sm py-8">
         <p>Data sourced from Grants.gov, SAM.gov, USASpending, NIH RePORTER, NSF, Federal RePORTER, ProPublica, FEMA, Regulations.gov, and California Grants Portal</p>
       </footer>
+
+      {/* Lead Capture Modal */}
+      <LeadCaptureModal
+        isOpen={showLeadModal}
+        onClose={() => setShowLeadModal(false)}
+        onSubmit={handleLeadSubmit}
+        searchCount={searchCount}
+        freeLimit={FREE_SEARCH_LIMIT}
+      />
     </main>
   );
 }
