@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import LeadCaptureModal from './components/LeadCaptureModal';
 
-// Free search limit for anonymous users
-const FREE_SEARCH_LIMIT = 3;
+// Anonymous users get 1 free search with teased results, then must register
+const FREE_SEARCH_LIMIT = 1;
 
 // Grant status options for tracking
 const GRANT_STATUSES = [
@@ -93,6 +93,7 @@ export default function Home() {
   const [searchCount, setSearchCount] = useState(0);
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [userInfo, setUserInfo] = useState(null); // null = anonymous, object = registered
+  const [hasSearchedOnce, setHasSearchedOnce] = useState(false); // Track if user has done their free search
 
   // Load favorites from localStorage on mount
   useEffect(() => {
@@ -126,11 +127,16 @@ export default function Home() {
         if (countData.date === today) {
           console.log('Setting search count to:', countData.count);
           setSearchCount(countData.count);
+          // If they've already searched, mark it
+          if (countData.count >= FREE_SEARCH_LIMIT) {
+            setHasSearchedOnce(true);
+          }
         } else {
           // New day, reset count
           console.log('New day - resetting count');
           localStorage.setItem('grantSearchCount', JSON.stringify({ count: 0, date: today }));
           setSearchCount(0);
+          setHasSearchedOnce(false);
         }
       }
     } catch (e) {
@@ -330,7 +336,7 @@ export default function Home() {
     // Debug logging
     console.log('Search triggered - searchCount:', searchCount, 'userInfo:', userInfo, 'limit:', FREE_SEARCH_LIMIT);
 
-    // Check if anonymous user has exceeded free search limit
+    // Check if anonymous user has exceeded free search limit (already used their 1 free search)
     if (!userInfo && searchCount >= FREE_SEARCH_LIMIT) {
       console.log('Showing lead modal - limit reached');
       setShowLeadModal(true);
@@ -459,11 +465,12 @@ export default function Home() {
       setErrors(newErrors);
       setPagination(newPagination);
 
-      // Increment search count for anonymous users
+      // Increment search count for anonymous users and mark they've searched
       if (!userInfo) {
         const newCount = searchCount + 1;
         console.log('Incrementing search count from', searchCount, 'to', newCount);
         setSearchCount(newCount);
+        setHasSearchedOnce(true);
         const today = new Date().toDateString();
         localStorage.setItem('grantSearchCount', JSON.stringify({ count: newCount, date: today }));
       }
@@ -808,12 +815,13 @@ export default function Home() {
             {userInfo ? (
               <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-2 rounded-lg text-sm">
                 <span className="text-lg">✓</span>
-                <span>Welcome back, {userInfo.firstName}!</span>
+                <span>Welcome back, {userInfo.firstName}! Unlimited searches enabled.</span>
                 <button
                   onClick={() => {
                     setUserInfo(null);
                     localStorage.removeItem('grantSearchUser');
                     setSearchCount(0);
+                    setHasSearchedOnce(false);
                     localStorage.removeItem('grantSearchCount');
                   }}
                   className="ml-2 text-green-300 hover:text-white underline text-xs"
@@ -824,16 +832,16 @@ export default function Home() {
             ) : (
               <div className="inline-flex items-center gap-2 bg-white/10 text-white/80 px-4 py-2 rounded-lg text-sm">
                 <span>
-                  {FREE_SEARCH_LIMIT - searchCount > 0
-                    ? `${FREE_SEARCH_LIMIT - searchCount} free search${FREE_SEARCH_LIMIT - searchCount !== 1 ? 'es' : ''} remaining`
-                    : 'Free searches used'}
+                  {!hasSearchedOnce
+                    ? 'Try 1 free search to see matching grants'
+                    : 'Sign up free to unlock full results'}
                 </span>
-                {searchCount >= FREE_SEARCH_LIMIT && (
+                {hasSearchedOnce && (
                   <button
                     onClick={() => setShowLeadModal(true)}
                     className="ml-2 bg-white text-blue-900 px-3 py-1 rounded font-medium hover:bg-blue-100"
                   >
-                    Sign Up Free
+                    Unlock Results
                   </button>
                 )}
               </div>
@@ -1239,17 +1247,39 @@ export default function Home() {
         )}
 
         {/* Results grid */}
-        <div className="grid gap-4">
+        <div className="grid gap-4 relative">
+          {/* Show unlock banner for anonymous users who have searched */}
+          {!userInfo && hasSearchedOnce && filteredResults.length > 0 && activeTab !== 'favorites' && (
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-6 text-center shadow-lg">
+              <div className="text-4xl mb-3">🔓</div>
+              <h3 className="text-xl font-bold text-white mb-2">
+                Found {totalResults} matching grants!
+              </h3>
+              <p className="text-white/90 mb-4">
+                Enter your email to unlock full details, amounts, deadlines, and direct links.
+              </p>
+              <button
+                onClick={() => setShowLeadModal(true)}
+                className="bg-white text-blue-600 px-6 py-3 rounded-lg font-bold hover:bg-blue-50 transition-colors"
+              >
+                Unlock All Results - Free
+              </button>
+              <p className="text-white/60 text-xs mt-3">No credit card required</p>
+            </div>
+          )}
+
           {filteredResults.map((opp, idx) => {
             const isInFavorites = activeTab === 'favorites';
             const deadlineUrgency = getDeadlineUrgency(opp.normalizedDeadline);
             const currentStatus = getGrantStatus(opp);
             const sourceConfig = DATA_SOURCES[opp.source] || {};
+            // Gate details for anonymous users who have used their free search (but show favorites)
+            const isGated = !userInfo && hasSearchedOnce && !isInFavorites;
 
             return (
               <div
                 key={`${opp.source}-${opp.normalizedId || idx}`}
-                className={`grant-card ${isInFavorites && selectedForBulk.has(opp.id) ? 'ring-2 ring-yellow-400' : ''}`}
+                className={`grant-card ${isInFavorites && selectedForBulk.has(opp.id) ? 'ring-2 ring-yellow-400' : ''} ${isGated ? 'relative overflow-hidden' : ''}`}
               >
                 <div className="flex justify-between items-start mb-3">
                   {isInFavorites && (
@@ -1307,31 +1337,46 @@ export default function Home() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
-                  <div>
-                    <span className="text-gray-500 block">Agency/Source</span>
-                    <span className="font-medium text-gray-900">{opp.normalizedAgency || 'Not specified'}</span>
+                {/* Details section - blurred for gated users */}
+                <div className={isGated ? 'blur-sm select-none pointer-events-none' : ''}>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
+                    <div>
+                      <span className="text-gray-500 block">Agency/Source</span>
+                      <span className="font-medium text-gray-900">{opp.normalizedAgency || 'Not specified'}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">{opp.isNonprofit ? 'Revenue' : 'Award'}</span>
+                      <span className="font-medium text-gray-900">{formatCurrency(opp.normalizedAmount)}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">{opp.isNonprofit ? 'Location' : 'Deadline'}</span>
+                      <span className={`font-medium ${deadlineUrgency.color}`}>
+                        {opp.isNonprofit ? opp.normalizedAgency : formatDate(opp.normalizedDeadline)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 block">{opp.isNonprofit ? 'EIN' : 'Posted'}</span>
+                      <span className="font-medium text-gray-900">
+                        {opp.isNonprofit ? opp.strEin : formatDate(opp.normalizedPosted)}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-gray-500 block">{opp.isNonprofit ? 'Revenue' : 'Award'}</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(opp.normalizedAmount)}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">{opp.isNonprofit ? 'Location' : 'Deadline'}</span>
-                    <span className={`font-medium ${deadlineUrgency.color}`}>
-                      {opp.isNonprofit ? opp.normalizedAgency : formatDate(opp.normalizedDeadline)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 block">{opp.isNonprofit ? 'EIN' : 'Posted'}</span>
-                    <span className="font-medium text-gray-900">
-                      {opp.isNonprofit ? opp.strEin : formatDate(opp.normalizedPosted)}
-                    </span>
-                  </div>
+
+                  {opp.normalizedDescription && (
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-3">{opp.normalizedDescription}</p>
+                  )}
                 </div>
 
-                {opp.normalizedDescription && (
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-3">{opp.normalizedDescription}</p>
+                {/* Unlock overlay for gated cards */}
+                {isGated && (
+                  <div className="absolute inset-0 bg-gradient-to-t from-white via-white/80 to-transparent flex items-end justify-center pb-4 pointer-events-auto" style={{ top: '60px' }}>
+                    <button
+                      onClick={() => setShowLeadModal(true)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm shadow-lg transition-colors"
+                    >
+                      Unlock Details
+                    </button>
+                  </div>
                 )}
 
                 {/* Manager controls for favorites */}
@@ -1397,7 +1442,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {opp.normalizedLink && (
+                {opp.normalizedLink && !isGated && (
                   <div className={`flex gap-3 ${isInFavorites ? 'mt-3' : ''}`}>
                     <a
                       href={opp.normalizedLink}
@@ -1456,10 +1501,8 @@ export default function Home() {
       {/* Lead Capture Modal */}
       <LeadCaptureModal
         isOpen={showLeadModal}
-        onClose={() => setShowLeadModal(false)}
         onSubmit={handleLeadSubmit}
-        searchCount={searchCount}
-        freeLimit={FREE_SEARCH_LIMIT}
+        totalResults={totalResults}
       />
     </main>
   );

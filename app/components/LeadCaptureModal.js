@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-export default function LeadCaptureModal({ isOpen, onClose, onSubmit, searchCount = 0, freeLimit = 3 }) {
+export default function LeadCaptureModal({ isOpen, onSubmit, totalResults = 0 }) {
   const [formData, setFormData] = useState({
     email: '',
     firstName: '',
@@ -70,14 +70,16 @@ export default function LeadCaptureModal({ isOpen, onClose, onSubmit, searchCoun
         {/* Header */}
         <div className="p-6 pb-4 border-b border-white/10">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center">
-              <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
+              <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Unlock Unlimited Searches</h2>
-              <p className="text-sm text-white/60">You've used {searchCount} of {freeLimit} free searches</p>
+              <h2 className="text-xl font-bold text-white">
+                {totalResults > 0 ? `${totalResults} Grants Found!` : 'Unlock Your Results'}
+              </h2>
+              <p className="text-sm text-white/60">Enter your email to see full details</p>
             </div>
           </div>
         </div>
@@ -85,18 +87,20 @@ export default function LeadCaptureModal({ isOpen, onClose, onSubmit, searchCoun
         {/* Body */}
         <div className="p-6">
           <p className="text-white/80 mb-6">
-            Create your free account to continue searching across 10 federal and state grant databases.
+            {totalResults > 0
+              ? `You've found ${totalResults} matching grants. Enter your email to unlock award amounts, deadlines, and direct links.`
+              : 'Create your free account to search across 10 federal and state grant databases.'}
           </p>
 
           {/* Benefits */}
           <div className="bg-white/5 rounded-lg p-4 mb-6">
-            <p className="text-sm font-medium text-white mb-3">Free account includes:</p>
+            <p className="text-sm font-medium text-white mb-3">With your free account:</p>
             <ul className="space-y-2">
               {[
-                '15 searches per day',
-                'Save up to 10 grants',
-                'Basic match scoring',
-                'Daily digest emails'
+                'View full grant details & direct links',
+                'Unlimited searches across 10 databases',
+                'Save grants to your personal tracker',
+                'Get notified about new opportunities'
               ].map((benefit, i) => (
                 <li key={i} className="flex items-center gap-2 text-sm text-white/70">
                   <svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
