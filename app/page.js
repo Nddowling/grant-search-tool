@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import LeadCaptureModal from './components/LeadCaptureModal';
+import TemplateModal from './components/TemplateModal';
 
 // Anonymous users get 1 free search with teased results, then must register
 const FREE_SEARCH_LIMIT = 1;
@@ -94,6 +95,10 @@ export default function Home() {
   const [showLeadModal, setShowLeadModal] = useState(false);
   const [userInfo, setUserInfo] = useState(null); // null = anonymous, object = registered
   const [hasSearchedOnce, setHasSearchedOnce] = useState(false); // Track if user has done their free search
+
+  // Template modal state
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [selectedGrantForTemplate, setSelectedGrantForTemplate] = useState(null);
 
   // Load favorites from localStorage on mount
   useEffect(() => {
@@ -847,7 +852,7 @@ export default function Home() {
           </p>
 
           {/* User status indicator */}
-          <div className="mt-4">
+          <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
             {userInfo ? (
               <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-2 rounded-lg text-sm">
                 <span className="text-lg">✓</span>
@@ -882,6 +887,13 @@ export default function Home() {
                 )}
               </div>
             )}
+            <button
+              onClick={() => setShowTemplateModal(true)}
+              className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+            >
+              <span>📄</span>
+              Application Templates
+            </button>
           </div>
         </div>
 
@@ -1479,7 +1491,7 @@ export default function Home() {
                 )}
 
                 {opp.normalizedLink && !isGated && (
-                  <div className={`flex gap-3 ${isInFavorites ? 'mt-3' : ''}`}>
+                  <div className={`flex gap-3 items-center ${isInFavorites ? 'mt-3' : ''}`}>
                     <a
                       href={opp.normalizedLink}
                       target="_blank"
@@ -1489,6 +1501,15 @@ export default function Home() {
                     >
                       View on {sourceConfig.name || opp.source} →
                     </a>
+                    <button
+                      onClick={() => {
+                        setSelectedGrantForTemplate(opp);
+                        setShowTemplateModal(true);
+                      }}
+                      className="text-sm bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-1 rounded-lg hover:from-green-600 hover:to-emerald-700 font-medium"
+                    >
+                      Get Template
+                    </button>
                   </div>
                 )}
               </div>
@@ -1540,6 +1561,17 @@ export default function Home() {
         onSubmit={handleLeadSubmit}
         onLogin={handleLogin}
         totalResults={totalResults}
+      />
+
+      {/* Template Store Modal */}
+      <TemplateModal
+        isOpen={showTemplateModal}
+        onClose={() => {
+          setShowTemplateModal(false);
+          setSelectedGrantForTemplate(null);
+        }}
+        grant={selectedGrantForTemplate}
+        userEmail={userInfo?.email}
       />
     </main>
   );
