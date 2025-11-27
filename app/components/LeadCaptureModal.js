@@ -89,12 +89,12 @@ export default function LeadCaptureModal({ isOpen, onSubmit, onLogin, totalResul
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto py-4">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" />
 
       {/* Modal */}
-      <div className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-white/10">
+      <div className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-white/10 my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
         {/* Header */}
         <div className="p-6 pb-4 border-b border-white/10">
           <div className="flex items-center gap-3 mb-2">
