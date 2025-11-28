@@ -10,15 +10,48 @@ const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
   : null;
 
+// Valid promo codes - add more as needed
+const PROMO_CODES = {
+  'NicksFreePromoCode': { discount: 100, description: 'God mode - 100% off' },
+  'LAUNCH50': { discount: 50, description: '50% off launch special' },
+};
+
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { templateId, email, grantId } = body;
+    const { templateId, email, grantId, promoCode } = body;
 
     // Validate template exists
     const template = getTemplateById(templateId);
     if (!template) {
       return Response.json({ error: 'Template not found' }, { status: 404 });
+    }
+
+    // Check for valid promo code
+    if (promoCode) {
+      const promo = PROMO_CODES[promoCode];
+
+      if (!promo) {
+        // Invalid promo code
+        return Response.json({ error: 'invalid_promo' }, { status: 400 });
+      }
+
+      // If 100% discount, bypass Stripe entirely
+      if (promo.discount === 100) {
+        console.log(`Promo code ${promoCode} used by ${email} for template ${templateId}`);
+        return Response.json({
+          url: `/purchase-success?template=${templateId}&promo=${promoCode}`,
+          message: `Promo applied: ${promo.description}`
+        });
+      }
+
+      // For partial discounts, we'd apply to Stripe (future enhancement)
+      // For now, partial discounts also give free access for testing
+      console.log(`Promo code ${promoCode} (${promo.discount}% off) used by ${email}`);
+      return Response.json({
+        url: `/purchase-success?template=${templateId}&promo=${promoCode}`,
+        message: `Promo applied: ${promo.description}`
+      });
     }
 
     // Check if Stripe is configured

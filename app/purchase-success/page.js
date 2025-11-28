@@ -15,6 +15,7 @@ function PurchaseSuccessContent() {
     const templateId = searchParams.get('template');
     const sessionId = searchParams.get('session_id');
     const isMock = searchParams.get('mock');
+    const promoCode = searchParams.get('promo');
 
     if (templateId) {
       const templateData = getTemplateById(templateId);
@@ -23,6 +24,14 @@ function PurchaseSuccessContent() {
 
     // If mock mode (Stripe not configured), show success immediately
     if (isMock) {
+      setStatus('success');
+      setDownloadReady(true);
+      return;
+    }
+
+    // If promo code was used (free checkout), show success immediately
+    if (promoCode) {
+      console.log(`Template accessed with promo code: ${promoCode}`);
       setStatus('success');
       setDownloadReady(true);
       return;

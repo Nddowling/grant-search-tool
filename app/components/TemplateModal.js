@@ -7,6 +7,8 @@ export default function TemplateModal({ isOpen, onClose, grant = null, userEmail
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoError, setPromoError] = useState('');
 
   // Filter templates based on grant source or show all
   const relevantTemplates = grant ? getTemplatesForGrant(grant) : [];
@@ -23,6 +25,7 @@ export default function TemplateModal({ isOpen, onClose, grant = null, userEmail
     }
 
     setIsLoading(true);
+    setPromoError('');
 
     try {
       const response = await fetch('/api/checkout', {
@@ -32,13 +35,20 @@ export default function TemplateModal({ isOpen, onClose, grant = null, userEmail
           templateId: template.id,
           email: userEmail,
           grantId: grant?.normalizedId || null,
+          promoCode: promoCode.trim(),
         }),
       });
 
       const data = await response.json();
 
+      if (data.error === 'invalid_promo') {
+        setPromoError('Invalid promo code');
+        setIsLoading(false);
+        return;
+      }
+
       if (data.url) {
-        // Redirect to Stripe Checkout
+        // Redirect to Stripe Checkout or success page (if promo)
         window.location.href = data.url;
       } else {
         alert('Error creating checkout session. Please try again.');
@@ -126,6 +136,19 @@ export default function TemplateModal({ isOpen, onClose, grant = null, userEmail
                   <div className="text-right">
                     <div className="text-3xl font-bold text-green-600">
                       {formatTemplatePrice(selectedTemplate.price)}
+                    </div>
+                    {/* Promo Code Input */}
+                    <div className="mt-2 mb-2">
+                      <input
+                        type="text"
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value)}
+                        placeholder="Promo code"
+                        className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      {promoError && (
+                        <p className="text-red-500 text-xs mt-1">{promoError}</p>
+                      )}
                     </div>
                     <button
                       onClick={() => handlePurchase(selectedTemplate)}
