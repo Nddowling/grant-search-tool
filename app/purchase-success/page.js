@@ -3,6 +3,8 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getTemplateById } from '../../lib/templates';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, BorderStyle, CheckBox } from 'docx';
+import { saveAs } from 'file-saver';
 
 // Inner component that uses useSearchParams
 function PurchaseSuccessContent() {
@@ -55,19 +57,17 @@ function PurchaseSuccessContent() {
     }
   }, [searchParams]);
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!template) return;
 
-    const content = generateTemplateDocument(template);
-    const blob = new Blob([content], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${template.id}-template.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    try {
+      const doc = generateWordDocument(template);
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, `${template.id}-template.docx`);
+    } catch (error) {
+      console.error('Error generating document:', error);
+      alert('Error generating document. Please try again.');
+    }
   };
 
   return (
@@ -110,7 +110,7 @@ function PurchaseSuccessContent() {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
-              Download Template
+              Download Word Document (.docx)
             </button>
           )}
 
@@ -171,134 +171,170 @@ export default function PurchaseSuccessPage() {
   );
 }
 
-// Generate an HTML document from the template
-function generateTemplateDocument(template) {
-  const sectionsHtml = template.sections.map(section => `
-    <div class="section">
-      <h2>${section.title}</h2>
-      <div class="guidance">
-        <strong>Guidance:</strong> ${section.guidance}
-      </div>
-      <div class="prompts">
-        <strong>Key Questions to Address:</strong>
-        <ul>
-          ${section.prompts.map(p => `<li>${p}</li>`).join('')}
-        </ul>
-      </div>
-      <div class="writing-area">
-        <p><em>[Write your response here]</em></p>
-        <br><br><br><br>
-      </div>
-    </div>
-  `).join('');
+// Generate a Word document from the template
+function generateWordDocument(template) {
+  const children = [];
 
-  const checklistHtml = template.checklist.map(item =>
-    `<li><input type="checkbox"> ${item}</li>`
-  ).join('');
+  // Title
+  children.push(
+    new Paragraph({
+      text: template.name,
+      heading: HeadingLevel.TITLE,
+      spacing: { after: 200 },
+    })
+  );
 
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>${template.name}</title>
-  <style>
-    body {
-      font-family: 'Georgia', serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 40px 20px;
-      line-height: 1.6;
-      color: #333;
-    }
-    h1 {
-      color: #1e40af;
-      border-bottom: 3px solid #1e40af;
-      padding-bottom: 10px;
-    }
-    h2 {
-      color: #1e40af;
-      margin-top: 40px;
-      border-bottom: 1px solid #ddd;
-      padding-bottom: 8px;
-    }
-    .section {
-      margin-bottom: 40px;
-      page-break-inside: avoid;
-    }
-    .guidance {
-      background: #f0f9ff;
-      padding: 15px;
-      border-radius: 8px;
-      margin: 15px 0;
-      border-left: 4px solid #1e40af;
-    }
-    .prompts {
-      background: #fefce8;
-      padding: 15px;
-      border-radius: 8px;
-      margin: 15px 0;
-    }
-    .prompts ul {
-      margin: 10px 0 0 0;
-      padding-left: 20px;
-    }
-    .prompts li {
-      margin-bottom: 8px;
-    }
-    .writing-area {
-      border: 1px dashed #ccc;
-      padding: 20px;
-      border-radius: 8px;
-      min-height: 150px;
-      background: #fafafa;
-    }
-    .checklist {
-      background: #f0fdf4;
-      padding: 20px;
-      border-radius: 8px;
-    }
-    .checklist h2 {
-      margin-top: 0;
-    }
-    .checklist ul {
-      list-style: none;
-      padding: 0;
-    }
-    .checklist li {
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .checklist input {
-      width: 18px;
-      height: 18px;
-    }
-    @media print {
-      .section {
-        page-break-inside: avoid;
-      }
-    }
-  </style>
-</head>
-<body>
-  <h1>${template.name}</h1>
-  <p><em>${template.description}</em></p>
+  // Description
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: template.description,
+          italics: true,
+          color: '666666',
+        }),
+      ],
+      spacing: { after: 400 },
+    })
+  );
 
-  ${sectionsHtml}
+  // Sections
+  template.sections.forEach((section, index) => {
+    // Section heading
+    children.push(
+      new Paragraph({
+        text: `${index + 1}. ${section.title}`,
+        heading: HeadingLevel.HEADING_1,
+        spacing: { before: 400, after: 200 },
+      })
+    );
 
-  <div class="checklist">
-    <h2>Required Documents Checklist</h2>
-    <ul>
-      ${checklistHtml}
-    </ul>
-  </div>
+    // Guidance box
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Guidance: ',
+            bold: true,
+            color: '1e40af',
+          }),
+          new TextRun({
+            text: section.guidance,
+            color: '1e40af',
+          }),
+        ],
+        spacing: { after: 200 },
+        shading: { fill: 'e0f2fe' },
+        indent: { left: 200, right: 200 },
+      })
+    );
 
-  <footer style="margin-top: 60px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px;">
-    <p>Template provided by Grant Search Tool. Good luck with your application!</p>
-  </footer>
-</body>
-</html>
-  `;
+    // Prompts header
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Key Questions to Address:',
+            bold: true,
+          }),
+        ],
+        spacing: { before: 200, after: 100 },
+      })
+    );
+
+    // Prompts as bullet points
+    section.prompts.forEach(prompt => {
+      children.push(
+        new Paragraph({
+          text: prompt,
+          bullet: { level: 0 },
+          spacing: { after: 80 },
+        })
+      );
+    });
+
+    // Writing area placeholder
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: '[Write your response here]',
+            italics: true,
+            color: '999999',
+          }),
+        ],
+        spacing: { before: 200, after: 100 },
+        border: {
+          top: { style: BorderStyle.DASHED, size: 1, color: 'cccccc' },
+          bottom: { style: BorderStyle.DASHED, size: 1, color: 'cccccc' },
+          left: { style: BorderStyle.DASHED, size: 1, color: 'cccccc' },
+          right: { style: BorderStyle.DASHED, size: 1, color: 'cccccc' },
+        },
+      })
+    );
+
+    // Empty lines for writing
+    for (let i = 0; i < 10; i++) {
+      children.push(
+        new Paragraph({
+          text: '',
+          spacing: { after: 100 },
+        })
+      );
+    }
+  });
+
+  // Checklist section
+  children.push(
+    new Paragraph({
+      text: 'Required Documents Checklist',
+      heading: HeadingLevel.HEADING_1,
+      spacing: { before: 600, after: 200 },
+    })
+  );
+
+  // Checklist items with checkboxes
+  template.checklist.forEach(item => {
+    children.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: '☐  ',
+            font: 'Segoe UI Symbol',
+          }),
+          new TextRun({
+            text: item,
+          }),
+        ],
+        spacing: { after: 100 },
+      })
+    );
+  });
+
+  // Footer
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'Template provided by Grant Search Tool. Good luck with your application!',
+          italics: true,
+          color: '999999',
+          size: 20,
+        }),
+      ],
+      spacing: { before: 600 },
+      border: {
+        top: { style: BorderStyle.SINGLE, size: 1, color: 'dddddd' },
+      },
+    })
+  );
+
+  return new Document({
+    sections: [
+      {
+        properties: {},
+        children: children,
+      },
+    ],
+  });
 }
