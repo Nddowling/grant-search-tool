@@ -26,21 +26,9 @@ function PurchaseSuccessContent() {
     // Check if this is a custom template
     if (type === 'custom') {
       setIsCustom(true);
+      let foundTemplate = false;
 
-      // Try to get custom template from URL params first (for promo/mock)
-      if (encodedData) {
-        try {
-          const templateData = JSON.parse(decodeURIComponent(encodedData));
-          setCustomTemplate(templateData);
-          setStatus('success');
-          setDownloadReady(true);
-          return;
-        } catch (e) {
-          console.error('Failed to parse custom template data:', e);
-        }
-      }
-
-      // Try localStorage (for Stripe redirect)
+      // Try localStorage first (this is the most reliable source)
       const storedTemplate = localStorage.getItem('pendingCustomTemplate');
       if (storedTemplate) {
         try {
@@ -48,9 +36,27 @@ function PurchaseSuccessContent() {
           setCustomTemplate(templateData);
           // Clean up localStorage after retrieving
           localStorage.removeItem('pendingCustomTemplate');
+          foundTemplate = true;
+          console.log('Custom template loaded from localStorage');
         } catch (e) {
           console.error('Failed to parse stored custom template:', e);
         }
+      }
+
+      // Fallback: Try to get custom template from URL params (for promo/mock)
+      if (!foundTemplate && encodedData) {
+        try {
+          const templateData = JSON.parse(decodeURIComponent(encodedData));
+          setCustomTemplate(templateData);
+          foundTemplate = true;
+          console.log('Custom template loaded from URL params');
+        } catch (e) {
+          console.error('Failed to parse custom template data from URL:', e);
+        }
+      }
+
+      if (!foundTemplate) {
+        console.error('No custom template found in localStorage or URL params');
       }
     } else if (templateId) {
       // Standard template
@@ -124,6 +130,31 @@ function PurchaseSuccessContent() {
         <div className="text-center py-12">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Confirming your purchase...</p>
+        </div>
+      )}
+
+      {status === 'success' && !hasTemplate && isCustom && (
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Template Data Not Found</h1>
+          <p className="text-gray-600 mb-6">
+            We couldn't find your custom template data. This can happen if you refreshed the page or the session expired.
+          </p>
+          <p className="text-gray-500 text-sm mb-6">
+            Please go back to the grant search and generate a new custom template.
+          </p>
+
+          <a
+            href="/"
+            className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg font-medium"
+          >
+            Back to Grant Search
+          </a>
         </div>
       )}
 

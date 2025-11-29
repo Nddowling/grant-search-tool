@@ -17,7 +17,7 @@ const PROMO_CODES = {
 };
 
 // Custom template pricing
-const CUSTOM_TEMPLATE_PRICE = 4900; // $49.00
+const CUSTOM_TEMPLATE_PRICE = 9949; // $99.49
 
 export async function POST(request) {
   try {

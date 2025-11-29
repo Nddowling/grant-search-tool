@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { TEMPLATE_LIBRARY, formatTemplatePrice, getTemplatesForGrant } from '../../lib/templates';
 
-const CUSTOM_TEMPLATE_PRICE = 4900; // $49.00
+const CUSTOM_TEMPLATE_PRICE = 9949; // $99.49
 
 export default function TemplateModal({ isOpen, onClose, grant = null, userEmail = null }) {
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -134,9 +134,10 @@ export default function TemplateModal({ isOpen, onClose, grant = null, userEmail
       }
 
       if (data.url) {
-        // For custom templates, store the data in localStorage before redirect
-        if (data.storeCustomTemplate && data.customTemplateData) {
-          localStorage.setItem('pendingCustomTemplate', JSON.stringify(data.customTemplateData));
+        // For custom templates, always store the data in localStorage before redirect
+        // This ensures it's available on the success page (promo codes, Stripe, etc.)
+        if (customTemplatePreview) {
+          localStorage.setItem('pendingCustomTemplate', JSON.stringify(customTemplatePreview));
         }
         window.location.href = data.url;
       } else {
@@ -231,7 +232,7 @@ export default function TemplateModal({ isOpen, onClose, grant = null, userEmail
                   /* Generate Custom Template View */
                   <div className="text-center py-8">
                     <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full mb-6">
-                      <span className="text-4xl">🤖</span>
+                      <span className="text-4xl">✨</span>
                     </div>
 
                     <h3 className="text-2xl font-bold text-gray-900 mb-2">
@@ -321,6 +322,12 @@ export default function TemplateModal({ isOpen, onClose, grant = null, userEmail
                           </>
                         )}
                       </button>
+
+                      {generatingCustom && (
+                        <p className="text-sm text-gray-600 mt-2">
+                          This generally takes about 30 seconds...
+                        </p>
+                      )}
 
                       <p className="text-xs text-gray-500">
                         Preview before you buy • Powered by Claude AI

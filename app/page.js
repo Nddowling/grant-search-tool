@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import LeadCaptureModal from './components/LeadCaptureModal';
 import TemplateModal from './components/TemplateModal';
+import AgencyProfileModal from './components/AgencyProfileModal';
 
 // Anonymous users get 1 free search with teased results, then must register
 const FREE_SEARCH_LIMIT = 1;
@@ -100,6 +101,10 @@ export default function Home() {
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedGrantForTemplate, setSelectedGrantForTemplate] = useState(null);
 
+  // Agency profile modal state
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [agencyProfile, setAgencyProfile] = useState(null);
+
   // Load favorites from localStorage on mount
   useEffect(() => {
     try {
@@ -157,6 +162,18 @@ export default function Home() {
       console.error('Error saving favorites:', e);
     }
   }, [favorites]);
+
+  // Load agency profile from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedProfile = localStorage.getItem('grantSearchProfile');
+      if (savedProfile) {
+        setAgencyProfile(JSON.parse(savedProfile));
+      }
+    } catch (e) {
+      console.error('Error loading profile:', e);
+    }
+  }, []);
 
   // Calculate relevance score based on keyword matches
   const calculateRelevanceScore = (opp, query) => {
@@ -887,6 +904,15 @@ export default function Home() {
                 )}
               </div>
             )}
+            {userInfo && (
+              <button
+                onClick={() => setShowProfileModal(true)}
+                className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              >
+                <span>🔔</span>
+                {agencyProfile ? 'Grant Alerts' : 'Set Up Alerts'}
+              </button>
+            )}
             <button
               onClick={() => setShowTemplateModal(true)}
               className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
@@ -1572,6 +1598,19 @@ export default function Home() {
         }}
         grant={selectedGrantForTemplate}
         userEmail={userInfo?.email}
+      />
+
+      {/* Agency Profile Modal */}
+      <AgencyProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        userEmail={userInfo?.email}
+        existingProfile={agencyProfile}
+        onSave={(profile) => {
+          setAgencyProfile(profile);
+          // Store in localStorage too
+          localStorage.setItem('grantSearchProfile', JSON.stringify(profile));
+        }}
       />
     </main>
   );
