@@ -302,7 +302,7 @@ export default function TemplateModal({ isOpen, onClose, grant = null, userEmail
 
                     <div className="flex flex-col items-center gap-4">
                       <div className="text-3xl font-bold text-green-600">
-                        ${(CUSTOM_TEMPLATE_PRICE / 100).toFixed(0)}
+                        ${(CUSTOM_TEMPLATE_PRICE / 100).toFixed(2)}
                       </div>
 
                       <button
@@ -356,7 +356,7 @@ export default function TemplateModal({ isOpen, onClose, grant = null, userEmail
                       </div>
                       <div className="text-right flex-shrink-0 ml-4">
                         <div className="text-3xl font-bold text-green-600">
-                          ${(CUSTOM_TEMPLATE_PRICE / 100).toFixed(0)}
+                          ${(CUSTOM_TEMPLATE_PRICE / 100).toFixed(2)}
                         </div>
                         <div className="mt-2 mb-2">
                           <input
