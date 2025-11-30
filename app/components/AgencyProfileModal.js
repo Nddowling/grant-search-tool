@@ -332,7 +332,7 @@ export default function AgencyProfileModal({ isOpen, onClose, userEmail, existin
                         type="text"
                         value={formData.organizationName}
                         onChange={(e) => handleInputChange('organizationName', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         placeholder="Your organization's legal name"
                       />
                     </div>
@@ -344,7 +344,7 @@ export default function AgencyProfileModal({ isOpen, onClose, userEmail, existin
                       <select
                         value={formData.organizationType}
                         onChange={(e) => handleInputChange('organizationType', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       >
                         <option value="">Select type...</option>
                         {ORGANIZATION_TYPES.map(type => (
@@ -361,7 +361,7 @@ export default function AgencyProfileModal({ isOpen, onClose, userEmail, existin
                         type="text"
                         value={formData.ein}
                         onChange={(e) => handleInputChange('ein', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         placeholder="XX-XXXXXXX"
                       />
                     </div>
@@ -374,7 +374,7 @@ export default function AgencyProfileModal({ isOpen, onClose, userEmail, existin
                         <select
                           value={formData.state}
                           onChange={(e) => handleInputChange('state', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         >
                           {US_STATES.map(state => (
                             <option key={state.value} value={state.value}>{state.label}</option>
@@ -389,7 +389,7 @@ export default function AgencyProfileModal({ isOpen, onClose, userEmail, existin
                           type="text"
                           value={formData.city}
                           onChange={(e) => handleInputChange('city', e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                           placeholder="City"
                         />
                       </div>
@@ -435,7 +435,7 @@ export default function AgencyProfileModal({ isOpen, onClose, userEmail, existin
                           value={keywordInput}
                           onChange={(e) => setKeywordInput(e.target.value)}
                           onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                           placeholder="Add a keyword..."
                         />
                         <button
@@ -474,7 +474,7 @@ export default function AgencyProfileModal({ isOpen, onClose, userEmail, existin
                       <select
                         value={formData.grantSizeRange}
                         onChange={(e) => handleInputChange('grantSizeRange', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       >
                         {GRANT_SIZE_RANGES.map(range => (
                           <option key={range.value} value={range.value}>{range.label}</option>
