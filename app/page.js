@@ -1242,7 +1242,7 @@ export default function Home() {
                   >
                     {aiSearchLoading ? (
                       <>
-                        <div className="loading-spinner"></div>
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                         Analyzing & Searching...
                       </>
                     ) : (
@@ -1531,7 +1531,7 @@ export default function Home() {
               >
                 {loading ? (
                   <>
-                    <div className="loading-spinner"></div>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
                     Searching {Object.values(enabledSources).filter(Boolean).length} source{Object.values(enabledSources).filter(Boolean).length !== 1 ? 's' : ''}...
                   </>
                 ) : (
