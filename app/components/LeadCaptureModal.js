@@ -99,9 +99,20 @@ export default function LeadCaptureModal({ isOpen, onSubmit, onLogin, totalResul
         <div className="relative bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl max-w-md w-full border border-white/10">
         {/* Header */}
         <div className="p-6 pb-4 border-b border-white/10">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
-              <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* Brand */}
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+              <span className="text-white font-bold text-sm">K</span>
+            </div>
+            <div>
+              <span className="text-sm font-bold text-white">Kayden</span>
+              <span className="text-sm font-bold text-amber-400"> & Co</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
@@ -111,8 +122,8 @@ export default function LeadCaptureModal({ isOpen, onSubmit, onLogin, totalResul
                   ? 'Welcome Back'
                   : totalResults > 0 ? `${totalResults} Grants Found!` : 'Unlock Your Results'}
               </h2>
-              <p className="text-sm text-white/60">
-                {isLoginMode ? 'Sign in with your email' : 'Enter your email to see full details'}
+              <p className="text-sm text-slate-400">
+                {isLoginMode ? 'Sign in with your email' : 'Create your free account'}
               </p>
             </div>
           </div>

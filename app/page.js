@@ -855,73 +855,119 @@ export default function Home() {
   const filteredResults = getFilteredResults();
 
   return (
-    <main className="min-h-screen p-4 md:p-8">
+    <main className="min-h-screen p-4 md:p-8 relative z-10">
       <div className="max-w-7xl mx-auto mb-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            Comprehensive Grant Search
-          </h1>
-          <p className="text-xl text-blue-200">
-            Search 10 federal & state databases in one place
-          </p>
-          <p className="text-sm text-blue-300 mt-2">
-            Grants.gov | SAM.gov | USASpending | NIH | NSF | Federal RePORTER | ProPublica | FEMA | Regulations.gov | California
-          </p>
+        {/* Brand Header */}
+        <header className="mb-12">
+          {/* Logo & Nav */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-3">
+              {/* Logo Mark */}
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+                <span className="text-white font-bold text-lg">K</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold">
+                  <span className="brand-logo">Kayden</span>
+                  <span className="brand-logo-accent"> & Co</span>
+                </h1>
+                <p className="text-xs text-slate-400 tracking-wide">DATA SOLUTIONS</p>
+              </div>
+            </div>
 
-          {/* User status indicator */}
-          <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
-            {userInfo ? (
-              <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-500/50 text-green-200 px-4 py-2 rounded-lg text-sm">
-                <span className="text-lg">✓</span>
-                <span>Welcome back, {userInfo.firstName}! Unlimited searches enabled.</span>
+            {/* Right side actions */}
+            <div className="flex items-center gap-3">
+              {userInfo && (
                 <button
-                  onClick={() => {
-                    setUserInfo(null);
-                    localStorage.removeItem('grantSearchUser');
-                    setSearchCount(0);
-                    setHasSearchedOnce(false);
-                    localStorage.removeItem('grantSearchCount');
-                  }}
-                  className="ml-2 text-green-300 hover:text-white underline text-xs"
+                  onClick={() => setShowProfileModal(true)}
+                  className="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all bg-purple-500/10 border border-purple-500/20 text-purple-300 hover:bg-purple-500/20"
                 >
-                  Sign out
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  {agencyProfile ? 'Alerts' : 'Set Up Alerts'}
                 </button>
-              </div>
-            ) : (
-              <div className="inline-flex items-center gap-2 bg-white/10 text-white/80 px-4 py-2 rounded-lg text-sm">
-                <span>
-                  {!hasSearchedOnce
-                    ? 'Try 1 free search to see matching grants'
-                    : 'Sign up free to unlock full results'}
-                </span>
-                {hasSearchedOnce && (
-                  <button
-                    onClick={() => setShowLeadModal(true)}
-                    className="ml-2 bg-white text-blue-900 px-3 py-1 rounded font-medium hover:bg-blue-100"
-                  >
-                    Unlock Results
-                  </button>
-                )}
-              </div>
-            )}
-            {userInfo && (
+              )}
               <button
-                onClick={() => setShowProfileModal(true)}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500 to-blue-600 hover:from-purple-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                onClick={() => setShowTemplateModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/20"
               >
-                <span>🔔</span>
-                {agencyProfile ? 'Grant Alerts' : 'Set Up Alerts'}
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span className="hidden sm:inline">Templates</span>
               </button>
-            )}
-            <button
-              onClick={() => setShowTemplateModal(true)}
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
-            >
-              <span>📄</span>
-              Application Templates
-            </button>
+            </div>
           </div>
-        </div>
+
+          {/* Hero Section */}
+          <div className="text-center">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-medium mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+              Searching 10 Federal & State Databases
+            </div>
+
+            <h2 className="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
+              <span className="text-white">Find Your </span>
+              <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Grant Funding</span>
+            </h2>
+
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-6">
+              Enterprise-grade grant intelligence. Search Grants.gov, SAM.gov, NIH, NSF, FEMA, and more in seconds.
+            </p>
+
+            {/* Data Sources Pills */}
+            <div className="flex flex-wrap justify-center gap-2 mb-6">
+              {['Grants.gov', 'SAM.gov', 'NIH', 'NSF', 'USASpending', 'FEMA', 'ProPublica', 'Regulations.gov'].map((source) => (
+                <span key={source} className="px-2 py-1 rounded-md bg-slate-800/50 border border-slate-700/50 text-slate-400 text-xs">
+                  {source}
+                </span>
+              ))}
+            </div>
+
+            {/* User status indicator */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              {userInfo ? (
+                <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-4 py-2 rounded-xl text-sm">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Welcome back, {userInfo.firstName}</span>
+                  <span className="text-emerald-500">•</span>
+                  <span className="text-emerald-400">Unlimited Access</span>
+                  <button
+                    onClick={() => {
+                      setUserInfo(null);
+                      localStorage.removeItem('grantSearchUser');
+                      setSearchCount(0);
+                      setHasSearchedOnce(false);
+                      localStorage.removeItem('grantSearchCount');
+                    }}
+                    className="ml-2 text-slate-400 hover:text-white text-xs underline"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 bg-slate-800/50 border border-slate-700/50 text-slate-300 px-4 py-2 rounded-xl text-sm">
+                  <span>
+                    {!hasSearchedOnce
+                      ? 'Try a free search to explore'
+                      : 'Create a free account for full access'}
+                  </span>
+                  {hasSearchedOnce && (
+                    <button
+                      onClick={() => setShowLeadModal(true)}
+                      className="ml-2 bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-lg font-medium text-xs transition-colors"
+                    >
+                      Unlock Results
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
 
         <div className="card p-6 mb-6">
           {/* Search inputs */}
