@@ -6,6 +6,8 @@
  */
 
 const FETCH_TIMEOUT_MS = 30000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -20,6 +22,33 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS)
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+async function fetchWithRetry(url, options = {}, retries = MAX_RETRIES) {
+  let lastError;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await fetchWithTimeout(url, options);
+
+      // If we get a 404, try again (ProPublica sometimes returns 404 intermittently)
+      if (response.status === 404 && attempt < retries) {
+        console.log(`ProPublica returned 404, retrying (attempt ${attempt + 1}/${retries})...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries && error.name !== 'AbortError') {
+        console.log(`ProPublica fetch failed, retrying (attempt ${attempt + 1}/${retries})...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+      }
+    }
+  }
+
+  throw lastError || new Error('All retry attempts failed');
 }
 
 export async function GET(request) {
@@ -58,7 +87,7 @@ export async function GET(request) {
 
     console.log(`ProPublica search: keyword="${keyword}", page=${page}`);
 
-    const response = await fetchWithTimeout(apiUrl, {
+    const response = await fetchWithRetry(apiUrl, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',

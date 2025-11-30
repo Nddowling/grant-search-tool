@@ -505,8 +505,96 @@ export default function Home() {
     }
   };
 
+  // Dedicated function to change page for a single source
+  // This prevents re-fetching all sources when paginating one source
   const changePage = async (source, newPage) => {
-    await searchGrants({ [source]: newPage });
+    if (!enabledSources[source]) return;
+
+    setLoading(true);
+
+    try {
+      // Build the API URL based on the source
+      let url;
+      switch (source) {
+        case 'grants':
+          url = `/api/grants?keyword=${encodeURIComponent(searchQuery)}&agency=${encodeURIComponent(agency)}&eligibility=${encodeURIComponent(eligibility)}&page=${newPage}`;
+          break;
+        case 'sam':
+          url = `/api/sam?keyword=${encodeURIComponent(searchQuery)}&agency=${encodeURIComponent(agency)}&type=${encodeURIComponent(samType)}&page=${newPage}`;
+          break;
+        case 'usaspending':
+          url = `/api/usaspending?keyword=${encodeURIComponent(searchQuery)}&agency=${encodeURIComponent(agency)}&page=${newPage}`;
+          break;
+        case 'nihReporter':
+          url = `/api/nih-reporter?keyword=${encodeURIComponent(searchQuery)}&page=${newPage}`;
+          break;
+        case 'nsf':
+          url = `/api/nsf?keyword=${encodeURIComponent(searchQuery)}&page=${newPage}`;
+          break;
+        case 'federalReporter':
+          url = `/api/federal-reporter?keyword=${encodeURIComponent(searchQuery)}&page=${newPage}`;
+          break;
+        case 'propublica':
+          url = `/api/propublica?keyword=${encodeURIComponent(searchQuery)}&page=${newPage}`;
+          break;
+        case 'fema':
+          url = `/api/fema?keyword=${encodeURIComponent(searchQuery)}&page=${newPage}`;
+          break;
+        case 'regulations':
+          url = `/api/regulations?keyword=${encodeURIComponent(searchQuery)}&page=${newPage}`;
+          break;
+        case 'california':
+          url = `/api/california?keyword=${encodeURIComponent(searchQuery)}&page=${newPage}`;
+          break;
+        default:
+          console.error('Unknown source:', source);
+          return;
+      }
+
+      const response = await fetch(url);
+
+      if (response.ok) {
+        const data = await response.json();
+
+        // Handle different response formats
+        const items = data.opportunities || data.awards || data.projects ||
+                     data.organizations || data.grants || data.documents || [];
+
+        // Update only this source's results
+        setResults(prev => ({
+          ...prev,
+          [source]: items.map(item => normalizeResult(item, source))
+        }));
+
+        // Update only this source's pagination
+        setPagination(prev => ({
+          ...prev,
+          [source]: {
+            page: data.page || newPage,
+            totalPages: data.totalPages || 0,
+            total: data.total || items.length
+          }
+        }));
+
+        if (data.error) {
+          setErrors(prev => ({ ...prev, [source]: data.error }));
+        } else {
+          // Clear any previous error for this source
+          setErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors[source];
+            return newErrors;
+          });
+        }
+      } else {
+        setErrors(prev => ({ ...prev, [source]: `${DATA_SOURCES[source].name} page fetch failed` }));
+      }
+    } catch (err) {
+      console.error(`Error fetching page for ${source}:`, err);
+      setErrors(prev => ({ ...prev, [source]: `${DATA_SOURCES[source].name} page fetch failed` }));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleFavorite = (opportunity) => {
