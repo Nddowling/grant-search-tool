@@ -14,6 +14,8 @@ function PurchaseSuccessContent() {
   const [customTemplate, setCustomTemplate] = useState(null);
   const [downloadReady, setDownloadReady] = useState(false);
   const [isCustom, setIsCustom] = useState(false);
+  const [isSubscription, setIsSubscription] = useState(false);
+  const [subscriptionPlan, setSubscriptionPlan] = useState(null);
 
   useEffect(() => {
     const templateId = searchParams.get('template');
@@ -22,6 +24,25 @@ function PurchaseSuccessContent() {
     const promoCode = searchParams.get('promo');
     const type = searchParams.get('type');
     const encodedData = searchParams.get('data');
+    const subscription = searchParams.get('subscription');
+
+    // Handle subscription purchase (via promo code or mock)
+    if (subscription) {
+      setIsSubscription(true);
+      setSubscriptionPlan(subscription);
+
+      // Activate Pro status in localStorage
+      const userData = JSON.parse(localStorage.getItem('grantSearchUser') || '{}');
+      userData.isPro = true;
+      userData.proSince = new Date().toISOString();
+      userData.proType = subscription; // 'monthly' or 'annual'
+      userData.proSource = promoCode ? 'promo' : (isMock ? 'mock' : 'stripe');
+      localStorage.setItem('grantSearchUser', JSON.stringify(userData));
+
+      console.log(`Pro subscription activated: ${subscription} (${promoCode || 'paid'})`);
+      setStatus('success');
+      return;
+    }
 
     // Check if this is a custom template
     if (type === 'custom') {
@@ -133,7 +154,54 @@ function PurchaseSuccessContent() {
         </div>
       )}
 
-      {status === 'success' && !hasTemplate && isCustom && (
+      {status === 'success' && isSubscription && (
+        <div className="text-center py-8">
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/30">
+            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Pro!</h1>
+          <p className="text-gray-600 mb-8">
+            Your {subscriptionPlan === 'annual' ? 'Annual' : 'Monthly'} Pro subscription is now active.
+          </p>
+
+          <div className="bg-blue-50 rounded-xl p-6 mb-8 text-left">
+            <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="text-blue-500">⚡</span> Your Pro Benefits
+            </h2>
+            <ul className="space-y-3">
+              {[
+                'Unlimited AI-powered grant searches',
+                'Save your organization profile',
+                'Email alerts for new grants',
+                'Export search results to CSV',
+                'Priority support',
+              ].map((benefit, i) => (
+                <li key={i} className="flex items-center gap-2 text-sm text-gray-700">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {benefit}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <a
+            href="/"
+            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded-lg font-semibold transition-colors"
+          >
+            Start Searching
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </a>
+        </div>
+      )}
+
+      {status === 'success' && !hasTemplate && isCustom && !isSubscription && (
         <div className="text-center py-12">
           <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -158,7 +226,7 @@ function PurchaseSuccessContent() {
         </div>
       )}
 
-      {status === 'success' && hasTemplate && (
+      {status === 'success' && hasTemplate && !isSubscription && (
         <div className="text-center">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
             {isCustom ? (
