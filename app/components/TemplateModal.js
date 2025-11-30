@@ -2,92 +2,24 @@
 
 import { useState } from 'react';
 
-const PAY_PER_TEMPLATE_PRICE = 4900; // $49.00
-const PRO_TEMPLATE_LIMIT = 5; // Pro users get 5 templates/month
+// Template pricing - à la carte only (not included in any subscription)
+const TEMPLATE_PRICING = {
+  single: 4900, // $49.00
+  threePack: 11900, // $119.00 (save $28)
+};
 
 export default function TemplateModal({
   isOpen,
   onClose,
   grant = null,
   userEmail = null,
-  subscription = null, // { plan, status } - null means free user
-  templateUsage = 0, // Number of templates used this month
-  onTemplateGenerated = null // Callback when a template is generated (to update usage)
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [promoCode, setPromoCode] = useState('');
   const [promoError, setPromoError] = useState('');
   const [showSamplePreview, setShowSamplePreview] = useState(false);
-  const [generatingTemplate, setGeneratingTemplate] = useState(false);
-  const [generatedTemplate, setGeneratedTemplate] = useState(null);
-  const [generateError, setGenerateError] = useState('');
 
-  const isPro = subscription && subscription.status === 'active';
-  const templatesRemaining = isPro ? PRO_TEMPLATE_LIMIT - templateUsage : 0;
-  const canUseProTemplate = isPro && templatesRemaining > 0;
-
-  // Generate template for Pro users (included in subscription)
-  const handleGenerateProTemplate = async () => {
-    if (!userEmail) {
-      alert('Please sign up first');
-      return;
-    }
-
-    if (!grant) {
-      alert('No grant selected for custom template');
-      return;
-    }
-
-    if (!canUseProTemplate) {
-      alert('You have used all your templates this month. Purchase additional templates at $49 each.');
-      return;
-    }
-
-    setGeneratingTemplate(true);
-    setGenerateError('');
-
-    try {
-      const response = await fetch('/api/generate-template', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: userEmail,
-          grantId: grant?.normalizedId || null,
-          grantTitle: grant?.normalizedTitle || null,
-          grantAgency: grant?.normalizedAgency || null,
-          grantAmount: grant?.normalizedAmount || null,
-          grantDeadline: grant?.normalizedDeadline || null,
-          grantSource: grant?.source || null,
-          isPro: true,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.error) {
-        setGenerateError(data.error);
-        return;
-      }
-
-      if (data.downloadUrl) {
-        setGeneratedTemplate(data);
-        // Update usage in parent
-        if (onTemplateGenerated) {
-          onTemplateGenerated();
-        }
-        // Update localStorage usage
-        const usageKey = `templateUsage_${userEmail}_${new Date().getMonth()}`;
-        localStorage.setItem(usageKey, String(templateUsage + 1));
-      }
-    } catch (error) {
-      console.error('Template generation error:', error);
-      setGenerateError('Failed to generate template. Please try again.');
-    } finally {
-      setGeneratingTemplate(false);
-    }
-  };
-
-  // Purchase template for non-Pro users or Pro users who need extra
+  // Purchase single template
   const handlePurchaseTemplate = async () => {
     if (!userEmail) {
       alert('Please sign up first to purchase templates');
@@ -251,7 +183,7 @@ export default function TemplateModal({
                           </p>
                           <div className="bg-yellow-50 border-l-4 border-yellow-500 p-3 text-sm">
                             <p className="text-yellow-800">
-                              💡 Tip: Include relevant statistics and cite credible sources...
+                              Tip: Include relevant statistics and cite credible sources...
                             </p>
                           </div>
                           <div className="h-16 bg-gray-100 rounded flex items-center justify-center text-gray-400 text-sm">
@@ -295,33 +227,16 @@ export default function TemplateModal({
                       </p>
                     </div>
                     <div className="flex items-center gap-4">
-                      {canUseProTemplate ? (
-                        <>
-                          <div className="text-lg font-bold text-emerald-600">
-                            Included with Pro
-                          </div>
-                          <button
-                            onClick={handleGenerateProTemplate}
-                            disabled={generatingTemplate}
-                            className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold"
-                          >
-                            {generatingTemplate ? 'Generating...' : 'Generate Now'}
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <div className="text-2xl font-bold text-green-600">
-                            ${(PAY_PER_TEMPLATE_PRICE / 100).toFixed(2)}
-                          </div>
-                          <button
-                            onClick={handlePurchaseTemplate}
-                            disabled={isLoading}
-                            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold"
-                          >
-                            {isLoading ? 'Processing...' : 'Buy Now'}
-                          </button>
-                        </>
-                      )}
+                      <div className="text-2xl font-bold text-green-600">
+                        ${(TEMPLATE_PRICING.single / 100).toFixed(2)}
+                      </div>
+                      <button
+                        onClick={handlePurchaseTemplate}
+                        disabled={isLoading}
+                        className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold"
+                      >
+                        {isLoading ? 'Processing...' : 'Buy Now'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -402,186 +317,70 @@ export default function TemplateModal({
 
                 {/* Price and Actions */}
                 <div className="flex flex-col items-center gap-4 max-w-lg mx-auto">
-                  {/* Show different pricing based on subscription */}
-                  {canUseProTemplate ? (
-                    /* Pro user with templates remaining */
-                    <>
-                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 w-full text-center">
-                        <div className="flex items-center justify-center gap-2 mb-2">
-                          <span className="text-emerald-600 font-bold text-xl">Included with Pro</span>
-                          <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-full font-medium">
-                            {templatesRemaining} of {PRO_TEMPLATE_LIMIT} remaining
-                          </span>
-                        </div>
-                        <p className="text-sm text-emerald-700">Generate your custom template now</p>
-                      </div>
+                  <div className="text-3xl font-bold text-green-600">
+                    ${(TEMPLATE_PRICING.single / 100).toFixed(2)}
+                  </div>
 
-                      {generateError && (
-                        <p className="text-red-500 text-sm">{generateError}</p>
-                      )}
+                  {/* Promo Code */}
+                  <div className="w-full max-w-xs">
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => {
+                        setPromoCode(e.target.value);
+                        setPromoError('');
+                      }}
+                      placeholder="Promo code (optional)"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    {promoError && (
+                      <p className="text-red-500 text-xs mt-1">{promoError}</p>
+                    )}
+                  </div>
 
-                      {generatedTemplate ? (
-                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 w-full text-center">
-                          <div className="text-4xl mb-3">🎉</div>
-                          <h4 className="font-bold text-gray-900 mb-2">Template Ready!</h4>
-                          <a
-                            href={generatedTemplate.downloadUrl}
-                            download
-                            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                            Download Template (.docx)
-                          </a>
-                        </div>
+                  {/* Action Buttons */}
+                  <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                    <button
+                      onClick={() => setShowSamplePreview(true)}
+                      className="flex-1 border-2 border-purple-600 text-purple-600 hover:bg-purple-50 px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      Preview
+                    </button>
+                    <button
+                      onClick={handlePurchaseTemplate}
+                      disabled={isLoading}
+                      className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
+                    >
+                      {isLoading ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Processing...
+                        </>
                       ) : (
-                        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
-                          <button
-                            onClick={() => setShowSamplePreview(true)}
-                            className="flex-1 border-2 border-purple-600 text-purple-600 hover:bg-purple-50 px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            Preview
-                          </button>
-                          <button
-                            onClick={handleGenerateProTemplate}
-                            disabled={generatingTemplate}
-                            className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-                          >
-                            {generatingTemplate ? (
-                              <>
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                Generating...
-                              </>
-                            ) : (
-                              <>
-                                <span>✨</span>
-                                Generate Now
-                              </>
-                            )}
-                          </button>
-                        </div>
+                        <>
+                          <span>✨</span>
+                          Buy Now
+                        </>
                       )}
-                    </>
-                  ) : isPro && templatesRemaining <= 0 ? (
-                    /* Pro user who has used all templates */
-                    <>
-                      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 w-full text-center">
-                        <p className="text-amber-800 font-medium mb-1">You've used all {PRO_TEMPLATE_LIMIT} templates this month</p>
-                        <p className="text-sm text-amber-700">Purchase additional templates at $49 each</p>
-                      </div>
-                      <div className="text-3xl font-bold text-green-600">
-                        ${(PAY_PER_TEMPLATE_PRICE / 100).toFixed(2)}
-                      </div>
+                    </button>
+                  </div>
 
-                      {/* Promo Code */}
-                      <div className="w-full max-w-xs">
-                        <input
-                          type="text"
-                          value={promoCode}
-                          onChange={(e) => {
-                            setPromoCode(e.target.value);
-                            setPromoError('');
-                          }}
-                          placeholder="Promo code (optional)"
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                        {promoError && (
-                          <p className="text-red-500 text-xs mt-1">{promoError}</p>
-                        )}
-                      </div>
-
-                      <button
-                        onClick={handlePurchaseTemplate}
-                        disabled={isLoading}
-                        className="w-full max-w-xs bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-                      >
-                        {isLoading ? (
-                          <>
-                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            Processing...
-                          </>
-                        ) : (
-                          <>
-                            <span>✨</span>
-                            Buy Template - $49
-                          </>
-                        )}
-                      </button>
-                    </>
-                  ) : (
-                    /* Free user - show pay-per-template pricing */
-                    <>
-                      <div className="text-3xl font-bold text-green-600">
-                        ${(PAY_PER_TEMPLATE_PRICE / 100).toFixed(2)}
-                      </div>
-
-                      {/* Promo Code */}
-                      <div className="w-full max-w-xs">
-                        <input
-                          type="text"
-                          value={promoCode}
-                          onChange={(e) => {
-                            setPromoCode(e.target.value);
-                            setPromoError('');
-                          }}
-                          placeholder="Promo code (optional)"
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                        {promoError && (
-                          <p className="text-red-500 text-xs mt-1">{promoError}</p>
-                        )}
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
-                        <button
-                          onClick={() => setShowSamplePreview(true)}
-                          className="flex-1 border-2 border-purple-600 text-purple-600 hover:bg-purple-50 px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          Preview
-                        </button>
-                        <button
-                          onClick={handlePurchaseTemplate}
-                          disabled={isLoading}
-                          className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
-                        >
-                          {isLoading ? (
-                            <>
-                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                              Processing...
-                            </>
-                          ) : (
-                            <>
-                              <span>✨</span>
-                              Buy Now
-                            </>
-                          )}
-                        </button>
-                      </div>
-
-                      {/* Pro upsell */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 w-full max-w-xs text-center">
-                        <p className="text-sm text-blue-800">
-                          <strong>Pro members</strong> get 5 templates/month included.{' '}
-                          <button className="underline text-blue-600 hover:text-blue-700">
-                            Learn more
-                          </button>
-                        </p>
-                      </div>
-                    </>
-                  )}
+                  {/* 3-Pack upsell */}
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 w-full max-w-xs text-center">
+                    <p className="text-sm text-purple-800 mb-2">
+                      <strong>Need multiple templates?</strong>
+                    </p>
+                    <p className="text-xs text-purple-600">
+                      Get a 3-pack for ${(TEMPLATE_PRICING.threePack / 100).toFixed(2)} and save $28!
+                    </p>
+                  </div>
 
                   <p className="text-xs text-gray-500">
-                    Powered by Claude AI • Instant download
+                    Powered by Claude AI • Instant download after purchase
                   </p>
                 </div>
               </div>

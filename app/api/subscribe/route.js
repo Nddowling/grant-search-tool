@@ -17,38 +17,30 @@ const stripe = process.env.STRIPE_SECRET_KEY
 // Subscription pricing in cents
 const PRICING = {
   monthly: {
-    amount: 2900, // $29.00
+    amount: 2400, // $24.00
     interval: 'month',
     intervalCount: 1,
     name: 'Pro Monthly',
-    description: 'Unlimited AI searches, 5 templates/month, email alerts',
-  },
-  semiannual: {
-    amount: 16530, // $165.30 (5% off monthly)
-    interval: 'month',
-    intervalCount: 6,
-    name: 'Pro 6-Month',
-    description: 'Save 5% - Unlimited AI searches, 5 templates/month, email alerts',
-    savings: '5%',
+    description: 'Unlimited AI searches, email alerts, CSV export',
   },
   annual: {
-    amount: 31320, // $313.20 (10% off monthly)
+    amount: 19900, // $199.00 (~17% off monthly)
     interval: 'year',
     intervalCount: 1,
     name: 'Pro Annual',
-    description: 'Save 10% - Unlimited AI searches, 5 templates/month, email alerts',
-    savings: '10%',
+    description: 'Save $89/year - Unlimited AI searches, email alerts, CSV export',
+    savings: '17%',
+    savingsDollar: 89,
   },
 };
 
-// Pro plan features
+// Pro plan features (templates NOT included - they're à la carte)
 const PRO_FEATURES = [
   'Unlimited AI-powered searches',
-  '5 custom templates per month',
   'Save organization profile',
   'Email alerts for new grants',
+  'Export search results to CSV',
   'Priority support',
-  'Export search results',
 ];
 
 export async function POST(request) {

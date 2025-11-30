@@ -6,8 +6,8 @@ import TemplateModal from './components/TemplateModal';
 import AgencyProfileModal from './components/AgencyProfileModal';
 import PricingModal from './components/PricingModal';
 
-// Anonymous users get 3 free searches, then must register
-const FREE_SEARCH_LIMIT = 3;
+// Free users get 5 AI searches per month (resets monthly)
+const FREE_MONTHLY_SEARCH_LIMIT = 5;
 
 // Grant status options for tracking
 const GRANT_STATUSES = [
@@ -139,24 +139,25 @@ export default function Home() {
         setUserInfo(JSON.parse(savedUser));
       }
 
-      // Load search count for anonymous users
+      // Load search count for free users (resets monthly)
       const savedCount = localStorage.getItem('grantSearchCount');
       console.log('Loading from localStorage - savedCount:', savedCount);
       if (savedCount) {
         const countData = JSON.parse(savedCount);
-        // Reset count if it's a new day
-        const today = new Date().toDateString();
-        if (countData.date === today) {
+        // Reset count if it's a new month
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
+        if (countData.month === currentMonth) {
           console.log('Setting search count to:', countData.count);
           setSearchCount(countData.count);
-          // If they've already searched, mark it
-          if (countData.count >= FREE_SEARCH_LIMIT) {
+          // If they've already used all searches, mark it
+          if (countData.count >= FREE_MONTHLY_SEARCH_LIMIT) {
             setHasSearchedOnce(true);
           }
         } else {
-          // New day, reset count
-          console.log('New day - resetting count');
-          localStorage.setItem('grantSearchCount', JSON.stringify({ count: 0, date: today }));
+          // New month, reset count
+          console.log('New month - resetting count');
+          localStorage.setItem('grantSearchCount', JSON.stringify({ count: 0, month: currentMonth }));
           setSearchCount(0);
           setHasSearchedOnce(false);
         }
@@ -399,10 +400,10 @@ export default function Home() {
     }
 
     // Debug logging
-    console.log('Search triggered - searchCount:', searchCount, 'userInfo:', userInfo, 'limit:', FREE_SEARCH_LIMIT);
+    console.log('Search triggered - searchCount:', searchCount, 'userInfo:', userInfo, 'limit:', FREE_MONTHLY_SEARCH_LIMIT);
 
-    // Check if anonymous user has exceeded free search limit (already used their 1 free search)
-    if (!userInfo && searchCount >= FREE_SEARCH_LIMIT) {
+    // Check if free user has exceeded monthly search limit
+    if (!userInfo && searchCount >= FREE_MONTHLY_SEARCH_LIMIT) {
       console.log('Showing lead modal - limit reached');
       setShowLeadModal(true);
       return;
@@ -530,14 +531,15 @@ export default function Home() {
       setErrors(newErrors);
       setPagination(newPagination);
 
-      // Increment search count for anonymous users and mark they've searched
+      // Increment search count for free users and mark they've searched
       if (!userInfo) {
         const newCount = searchCount + 1;
         console.log('Incrementing search count from', searchCount, 'to', newCount);
         setSearchCount(newCount);
         setHasSearchedOnce(true);
-        const today = new Date().toDateString();
-        localStorage.setItem('grantSearchCount', JSON.stringify({ count: newCount, date: today }));
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
+        localStorage.setItem('grantSearchCount', JSON.stringify({ count: newCount, month: currentMonth }));
       }
 
     } catch (err) {
@@ -555,8 +557,8 @@ export default function Home() {
       return;
     }
 
-    // Check if anonymous user has exceeded free search limit
-    if (!userInfo && searchCount >= FREE_SEARCH_LIMIT) {
+    // Check if free user has exceeded monthly search limit
+    if (!userInfo && searchCount >= FREE_MONTHLY_SEARCH_LIMIT) {
       setShowLeadModal(true);
       return;
     }
@@ -622,13 +624,14 @@ export default function Home() {
         setSearchQuery(data.searchedKeyword);
       }
 
-      // Increment search count for anonymous users
+      // Increment search count for free users
       if (!userInfo) {
         const newCount = searchCount + 1;
         setSearchCount(newCount);
         setHasSearchedOnce(true);
-        const today = new Date().toDateString();
-        localStorage.setItem('grantSearchCount', JSON.stringify({ count: newCount, date: today }));
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
+        localStorage.setItem('grantSearchCount', JSON.stringify({ count: newCount, month: currentMonth }));
       }
 
     } catch (err) {
@@ -1228,7 +1231,7 @@ export default function Home() {
                     )}
                     {!userInfo && (
                       <span className="ml-2">
-                        • {FREE_SEARCH_LIMIT - searchCount} free search{FREE_SEARCH_LIMIT - searchCount !== 1 ? 'es' : ''} remaining
+                        • {FREE_MONTHLY_SEARCH_LIMIT - searchCount} free search{FREE_MONTHLY_SEARCH_LIMIT - searchCount !== 1 ? 'es' : ''} remaining this month
                       </span>
                     )}
                   </div>

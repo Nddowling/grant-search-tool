@@ -16,27 +16,45 @@ const PROMO_CODES = {
   'LAUNCH50': { discount: 50, description: '50% off launch special' },
 };
 
-// Custom template pricing (pay-per-template for non-Pro users)
-const CUSTOM_TEMPLATE_PRICE = 4900; // $49.00
+// Template pricing (à la carte only - NOT included in any subscription)
+const TEMPLATE_PRICING = {
+  single: 4900, // $49.00
+  threePack: 11900, // $119.00 (save $28)
+};
+
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { templateId, email, grantId, promoCode, isCustom, customTemplate } = body;
+    const { templateId, email, grantId, promoCode, isCustom, customTemplate, grantTitle, grantAgency } = body;
 
     let template;
     let price;
     let name;
     let description;
 
-    if (isCustom && customTemplate) {
-      // Custom AI-generated template
+    // Handle template 3-pack purchase
+    if (templateId === 'template-3pack') {
+      template = { id: 'template-3pack' };
+      price = TEMPLATE_PRICING.threePack;
+      name = 'AI Template 3-Pack';
+      description = 'Three AI-generated custom grant templates (save $28)';
+    }
+    // Handle single template purchase (no grant specified)
+    else if (templateId === 'template-single') {
+      template = { id: 'template-single' };
+      price = TEMPLATE_PRICING.single;
+      name = 'Single AI Template';
+      description = 'One AI-generated custom grant template';
+    }
+    // Handle custom AI-generated template for specific grant
+    else if (isCustom || templateId === 'custom-ai-generated') {
       template = { id: 'custom-ai-generated' };
-      price = CUSTOM_TEMPLATE_PRICE;
-      name = customTemplate.templateTitle || 'Custom AI Grant Template';
-      description = customTemplate.grantSummary || 'AI-generated custom template for your specific grant';
+      price = TEMPLATE_PRICING.single;
+      name = customTemplate?.templateTitle || grantTitle ? `Custom Template: ${(grantTitle || '').slice(0, 50)}...` : 'Custom AI Grant Template';
+      description = customTemplate?.grantSummary || (grantAgency ? `AI-generated template for ${grantAgency}` : 'AI-generated custom template for your specific grant');
     } else {
-      // Standard template
+      // Standard template from library
       template = getTemplateById(templateId);
       if (!template) {
         return Response.json({ error: 'Template not found' }, { status: 404 });
@@ -111,18 +129,24 @@ export async function POST(request) {
     // Get the base URL for success/cancel redirects
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
 
-    // For custom templates, we need to store the template data temporarily
-    // We'll pass it through session metadata (Stripe allows up to 500 chars per field)
+    // Build metadata for the checkout session
     let metadata = {
       templateId: template.id,
       email: email,
       grantId: grantId || '',
-      isCustom: isCustom ? 'true' : 'false',
+      isCustom: (isCustom || templateId === 'custom-ai-generated') ? 'true' : 'false',
+      templateType: template.id, // 'template-3pack', 'template-single', or 'custom-ai-generated'
     };
 
-    // For custom templates, store a reference (the actual download happens client-side)
-    if (isCustom && customTemplate) {
-      metadata.customTemplateTitle = (customTemplate.templateTitle || '').slice(0, 450);
+    // For 3-pack, track credits
+    if (templateId === 'template-3pack') {
+      metadata.templateCredits = '3';
+    }
+
+    // For custom templates, store grant info for generation
+    if (isCustom || templateId === 'custom-ai-generated') {
+      metadata.customTemplateTitle = (customTemplate?.templateTitle || grantTitle || '').slice(0, 450);
+      if (grantAgency) metadata.grantAgency = grantAgency.slice(0, 100);
     }
 
     // Create Stripe Checkout Session
@@ -148,9 +172,11 @@ export async function POST(request) {
         },
       ],
       metadata: metadata,
-      success_url: isCustom
-        ? `${baseUrl}/purchase-success?session_id={CHECKOUT_SESSION_ID}&type=custom`
-        : `${baseUrl}/purchase-success?session_id={CHECKOUT_SESSION_ID}&template=${templateId}`,
+      success_url: templateId === 'template-3pack'
+        ? `${baseUrl}/purchase-success?session_id={CHECKOUT_SESSION_ID}&type=3pack`
+        : (isCustom || templateId === 'custom-ai-generated')
+          ? `${baseUrl}/purchase-success?session_id={CHECKOUT_SESSION_ID}&type=custom`
+          : `${baseUrl}/purchase-success?session_id={CHECKOUT_SESSION_ID}&template=${templateId}`,
       cancel_url: `${baseUrl}?checkout=cancelled`,
     });
 
@@ -199,8 +225,11 @@ export async function GET(request) {
       success: session.payment_status === 'paid',
       email: session.customer_email,
       templateId: session.metadata?.templateId,
+      templateType: session.metadata?.templateType,
+      templateCredits: session.metadata?.templateCredits ? parseInt(session.metadata.templateCredits) : 1,
       isCustom: session.metadata?.isCustom === 'true',
       customTemplateTitle: session.metadata?.customTemplateTitle,
+      grantAgency: session.metadata?.grantAgency,
       amount: session.amount_total,
     });
 
