@@ -274,7 +274,9 @@ export default function PricingModal({ isOpen, onClose, userEmail = null, onSele
                   value={promoCode}
                   onChange={(e) => { setPromoCode(e.target.value); setPromoError(''); }}
                   placeholder="Promo code (optional)"
-                  className="w-full px-4 py-2.5 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  autoComplete="off"
+                  style={{ backgroundColor: '#1e293b', color: '#ffffff' }}
+                  className="w-full px-4 py-2.5 border border-slate-600 rounded-lg placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 {promoError && <p className="text-red-400 text-xs mt-1">{promoError}</p>}
               </div>
