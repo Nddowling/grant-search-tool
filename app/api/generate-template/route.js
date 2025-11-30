@@ -1,6 +1,7 @@
 /**
  * AI-Powered Custom Grant Template Generator
  * Uses Claude to create tailored proposal templates based on specific grant details
+ * Supports both Pro users (included in subscription) and paid templates
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -9,16 +10,37 @@ const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   : null;
 
-// Pricing for custom templates
-const CUSTOM_TEMPLATE_PRICE = 9949; // $99.49
-
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { grant, email } = body;
+    const {
+      email,
+      grantId,
+      grantTitle,
+      grantAgency,
+      grantAmount,
+      grantDeadline,
+      grantSource,
+      isPro = false, // Whether this is a Pro user using included templates
+      grant, // Legacy support for full grant object
+    } = body;
 
-    if (!grant) {
+    // Build grant data from either new params or legacy grant object
+    const grantData = grant || {
+      normalizedId: grantId,
+      normalizedTitle: grantTitle,
+      normalizedAgency: grantAgency,
+      normalizedAmount: grantAmount,
+      normalizedDeadline: grantDeadline,
+      source: grantSource,
+    };
+
+    if (!grantData.normalizedTitle) {
       return Response.json({ error: 'Grant data required' }, { status: 400 });
+    }
+
+    if (!email) {
+      return Response.json({ error: 'Email required' }, { status: 400 });
     }
 
     if (!anthropic) {
@@ -30,17 +52,22 @@ export async function POST(request) {
     }
 
     // Build context about the grant
-    const grantContext = buildGrantContext(grant);
+    const grantContext = buildGrantContext(grantData);
 
     // Generate the custom template using Claude
     const templateContent = await generateCustomTemplate(grantContext);
 
+    // Generate a downloadable document (in production, this would create a real .docx file)
+    // For now, we return the JSON content and let the client handle document generation
+    const downloadUrl = `/api/download-template?data=${encodeURIComponent(JSON.stringify(templateContent))}`;
+
     return Response.json({
       success: true,
       template: templateContent,
-      grantTitle: grant.normalizedTitle,
-      grantId: grant.normalizedId,
-      price: CUSTOM_TEMPLATE_PRICE,
+      downloadUrl: downloadUrl,
+      grantTitle: grantData.normalizedTitle,
+      grantId: grantData.normalizedId,
+      isPro: isPro,
     });
 
   } catch (error) {

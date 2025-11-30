@@ -16,8 +16,8 @@ const PROMO_CODES = {
   'LAUNCH50': { discount: 50, description: '50% off launch special' },
 };
 
-// Custom template pricing
-const CUSTOM_TEMPLATE_PRICE = 9949; // $99.49
+// Custom template pricing (pay-per-template for non-Pro users)
+const CUSTOM_TEMPLATE_PRICE = 4900; // $49.00
 
 export async function POST(request) {
   try {

@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import LeadCaptureModal from './components/LeadCaptureModal';
 import TemplateModal from './components/TemplateModal';
 import AgencyProfileModal from './components/AgencyProfileModal';
+import PricingModal from './components/PricingModal';
 
-// Anonymous users get 1 free search with teased results, then must register
-const FREE_SEARCH_LIMIT = 1;
+// Anonymous users get 3 free searches, then must register
+const FREE_SEARCH_LIMIT = 3;
 
 // Grant status options for tracking
 const GRANT_STATUSES = [
@@ -111,6 +112,11 @@ export default function Home() {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
 
+  // Subscription state
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [subscription, setSubscription] = useState(null); // { plan, status, currentPeriodEnd }
+  const [templateUsage, setTemplateUsage] = useState(0); // Templates used this month
+
   // Load favorites from localStorage on mount
   useEffect(() => {
     try {
@@ -180,6 +186,37 @@ export default function Home() {
       console.error('Error loading profile:', e);
     }
   }, []);
+
+  // Check subscription status when user is logged in
+  useEffect(() => {
+    const checkSubscription = async () => {
+      if (!userInfo?.email) return;
+
+      try {
+        const response = await fetch(`/api/subscribe?email=${encodeURIComponent(userInfo.email)}`);
+        const data = await response.json();
+
+        if (data.subscribed) {
+          setSubscription({
+            plan: data.plan,
+            status: data.status,
+            currentPeriodEnd: data.currentPeriodEnd,
+          });
+        }
+
+        // Load template usage from localStorage
+        const usageKey = `templateUsage_${userInfo.email}_${new Date().getMonth()}`;
+        const savedUsage = localStorage.getItem(usageKey);
+        if (savedUsage) {
+          setTemplateUsage(parseInt(savedUsage, 10));
+        }
+      } catch (e) {
+        console.error('Error checking subscription:', e);
+      }
+    };
+
+    checkSubscription();
+  }, [userInfo]);
 
   // Calculate relevance score based on keyword matches
   const calculateRelevanceScore = (opp, query) => {
@@ -1111,6 +1148,26 @@ export default function Home() {
 
             {/* Right side actions */}
             <div className="flex items-center gap-3">
+              {userInfo && !subscription && (
+                <button
+                  onClick={() => setShowPricingModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-lg shadow-blue-500/25"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                  </svg>
+                  <span className="hidden sm:inline">Upgrade to Pro</span>
+                  <span className="sm:hidden">Pro</span>
+                </button>
+              )}
+              {userInfo && subscription && (
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Pro Member
+                </span>
+              )}
               {userInfo && (
                 <button
                   onClick={() => setShowProfileModal(true)}
@@ -1242,10 +1299,23 @@ export default function Home() {
                   </svg>
                   <span>Welcome back, {userInfo.firstName}</span>
                   <span className="text-emerald-500">•</span>
-                  <span className="text-emerald-400">Unlimited Access</span>
+                  {subscription ? (
+                    <span className="text-emerald-400 font-medium">Pro Member</span>
+                  ) : (
+                    <>
+                      <span className="text-slate-400">Free Plan</span>
+                      <button
+                        onClick={() => setShowPricingModal(true)}
+                        className="ml-1 text-blue-400 hover:text-blue-300 text-xs underline"
+                      >
+                        Upgrade
+                      </button>
+                    </>
+                  )}
                   <button
                     onClick={() => {
                       setUserInfo(null);
+                      setSubscription(null);
                       localStorage.removeItem('grantSearchUser');
                       setSearchCount(0);
                       setHasSearchedOnce(false);
@@ -1974,6 +2044,9 @@ export default function Home() {
         }}
         grant={selectedGrantForTemplate}
         userEmail={userInfo?.email}
+        subscription={subscription}
+        templateUsage={templateUsage}
+        onTemplateGenerated={() => setTemplateUsage(prev => prev + 1)}
       />
 
       {/* Agency Profile Modal */}
@@ -1986,6 +2059,20 @@ export default function Home() {
           setAgencyProfile(profile);
           // Store in localStorage too
           localStorage.setItem('grantSearchProfile', JSON.stringify(profile));
+        }}
+      />
+
+      {/* Pricing Modal */}
+      <PricingModal
+        isOpen={showPricingModal}
+        onClose={() => setShowPricingModal(false)}
+        userEmail={userInfo?.email}
+        onSelectPlan={(plan) => {
+          if (plan === 'pay-per-template') {
+            // User wants to pay per template - just close pricing modal
+            // They'll be prompted when they click "Get Template" on a grant
+            setShowPricingModal(false);
+          }
         }}
       />
     </main>
