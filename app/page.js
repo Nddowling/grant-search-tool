@@ -105,6 +105,12 @@ export default function Home() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [agencyProfile, setAgencyProfile] = useState(null);
 
+  // AI Search state
+  const [aiDescription, setAiDescription] = useState('');
+  const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+
   // Load favorites from localStorage on mount
   useEffect(() => {
     try {
@@ -502,6 +508,97 @@ export default function Home() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // AI-powered natural language search
+  const performAiSearch = async () => {
+    if (!aiDescription.trim() || aiDescription.trim().length < 10) {
+      setErrors({ general: 'Please describe your organization in more detail (at least 10 characters)' });
+      return;
+    }
+
+    // Check if anonymous user has exceeded free search limit
+    if (!userInfo && searchCount >= FREE_SEARCH_LIMIT) {
+      setShowLeadModal(true);
+      return;
+    }
+
+    setAiSearchLoading(true);
+    setErrors({});
+    setAiAnalysis(null);
+
+    try {
+      const response = await fetch('/api/ai-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: aiDescription,
+          userEmail: userInfo?.email,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        setErrors({ general: data.error || 'AI search failed. Please try again.' });
+        return;
+      }
+
+      // Store the AI analysis
+      setAiAnalysis(data.analysis);
+
+      // Update results from all sources
+      const newResults = { ...results };
+      const newPagination = { ...pagination };
+
+      Object.keys(data.results || {}).forEach(source => {
+        const sourceData = data.results[source];
+        newResults[source] = (sourceData.items || []).map(item => normalizeResult(item, source));
+        newPagination[source] = {
+          page: sourceData.page || 1,
+          totalPages: sourceData.totalPages || 1,
+          total: sourceData.total || sourceData.items?.length || 0,
+        };
+      });
+
+      setResults(newResults);
+      setPagination(newPagination);
+
+      // Update profile if returned
+      if (data.profile) {
+        setAgencyProfile(prev => ({
+          ...prev,
+          ...data.profile,
+          aiGenerated: true,
+        }));
+        // Also save to localStorage
+        localStorage.setItem('grantSearchProfile', JSON.stringify({
+          ...agencyProfile,
+          ...data.profile,
+          aiGenerated: true,
+        }));
+      }
+
+      // Set the keyword for display/further searches
+      if (data.searchedKeyword) {
+        setSearchQuery(data.searchedKeyword);
+      }
+
+      // Increment search count for anonymous users
+      if (!userInfo) {
+        const newCount = searchCount + 1;
+        setSearchCount(newCount);
+        setHasSearchedOnce(true);
+        const today = new Date().toDateString();
+        localStorage.setItem('grantSearchCount', JSON.stringify({ count: newCount, date: today }));
+      }
+
+    } catch (err) {
+      setErrors({ general: 'AI search failed. Please try again.' });
+      console.error('AI Search error:', err);
+    } finally {
+      setAiSearchLoading(false);
     }
   };
 
@@ -1041,17 +1138,91 @@ export default function Home() {
           <div className="text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-medium mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-              Searching 10 Federal & State Databases
+              AI-Powered Search Across 10 Federal & State Databases
             </div>
 
             <h2 className="text-4xl md:text-5xl font-extrabold mb-4 leading-tight">
-              <span className="text-white">Find Your </span>
-              <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Grant Funding</span>
+              <span className="text-white">Tell Us About Your </span>
+              <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Organization</span>
             </h2>
 
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-6">
-              Enterprise-grade grant intelligence. Search Grants.gov, SAM.gov, NIH, NSF, FEMA, and more in seconds.
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-8">
+              Describe your nonprofit, municipality, or department and we'll find matching grant opportunities using AI.
             </p>
+
+            {/* AI Search Box */}
+            <div className="max-w-3xl mx-auto mb-6">
+              <div className="card p-6">
+                <textarea
+                  placeholder="Example: We're a small nonprofit in rural Texas focused on providing after-school STEM education programs for underserved middle school students. We're looking for grants to expand our robotics curriculum and hire additional instructors..."
+                  className="w-full h-32 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/50 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none text-sm"
+                  value={aiDescription}
+                  onChange={(e) => setAiDescription(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.metaKey) {
+                      performAiSearch();
+                    }
+                  }}
+                />
+                <div className="flex items-center justify-between mt-4">
+                  <div className="text-xs text-slate-500">
+                    {aiDescription.length > 0 && (
+                      <span>{aiDescription.length} characters</span>
+                    )}
+                    {!userInfo && (
+                      <span className="ml-2">
+                        • {FREE_SEARCH_LIMIT - searchCount} free search{FREE_SEARCH_LIMIT - searchCount !== 1 ? 'es' : ''} remaining
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={performAiSearch}
+                    disabled={aiSearchLoading || aiDescription.trim().length < 10}
+                    className="btn-primary flex items-center gap-2"
+                  >
+                    {aiSearchLoading ? (
+                      <>
+                        <div className="loading-spinner"></div>
+                        Analyzing & Searching...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        Find My Grants
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Analysis Results */}
+            {aiAnalysis && (
+              <div className="max-w-3xl mx-auto mb-6">
+                <div className="card p-4 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border-purple-500/20">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg">✨</span>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-white text-sm font-medium mb-1">AI Analysis</p>
+                      <p className="text-slate-300 text-sm">{aiAnalysis.summary}</p>
+                      {aiAnalysis.keywords && aiAnalysis.keywords.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {aiAnalysis.keywords.slice(0, 5).map((keyword, i) => (
+                            <span key={i} className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 text-xs">
+                              {keyword}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Data Sources Pills */}
             <div className="flex flex-wrap justify-center gap-2 mb-6">
@@ -1089,7 +1260,7 @@ export default function Home() {
                 <div className="inline-flex items-center gap-2 bg-slate-800/50 border border-slate-700/50 text-slate-300 px-4 py-2 rounded-xl text-sm">
                   <span>
                     {!hasSearchedOnce
-                      ? 'Try a free search to explore'
+                      ? 'Try a free AI search to explore'
                       : 'Create a free account for full access'}
                   </span>
                   {hasSearchedOnce && (
@@ -1106,6 +1277,27 @@ export default function Home() {
           </div>
         </header>
 
+        {/* Advanced Search Toggle */}
+        <div className="mb-4">
+          <button
+            onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+            className="flex items-center gap-2 text-slate-400 hover:text-white text-sm transition-colors"
+          >
+            <svg
+              className={`w-4 h-4 transition-transform ${showAdvancedSearch ? 'rotate-90' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            Advanced Keyword Search
+            <span className="text-xs text-slate-500">(filters, specific databases)</span>
+          </button>
+        </div>
+
+        {/* Advanced Search Panel - Collapsible */}
+        {showAdvancedSearch && (
         <div className="card p-6 mb-6">
           {/* Search inputs */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
@@ -1308,6 +1500,7 @@ export default function Home() {
             </div>
           </div>
         </div>
+        )}
 
         {errors.general && (
           <div className="bg-red-500/20 border border-red-500 text-red-200 px-4 py-3 rounded-lg mb-6">
