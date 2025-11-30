@@ -1971,8 +1971,7 @@ export default function Home() {
                       href={opp.normalizedLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className={`font-medium text-sm hover:underline`}
-                      style={{ color: sourceConfig.color?.replace('bg-', '').includes('-') ? undefined : '#3b82f6' }}
+                      className="font-medium text-sm hover:underline text-blue-400 hover:text-blue-300"
                     >
                       View on {sourceConfig.name || opp.source} →
                     </a>
