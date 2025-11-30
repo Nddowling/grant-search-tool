@@ -33,22 +33,6 @@ const TEMPLATE_PRICING = {
   },
 };
 
-const PRO_FEATURES = [
-  { text: 'Unlimited AI-powered searches', included: true },
-  { text: 'Save organization profile', included: true },
-  { text: 'Email alerts for new grants', included: true },
-  { text: 'Export search results to CSV', included: true },
-  { text: 'Priority support', included: true },
-];
-
-const FREE_FEATURES = [
-  { text: '5 AI searches per month', included: true },
-  { text: 'View grant results', included: true },
-  { text: 'Save favorites', included: true },
-  { text: 'Email alerts', included: false },
-  { text: 'CSV export', included: false },
-  { text: 'Saved profile', included: false },
-];
 
 export default function PricingModal({ isOpen, onClose, userEmail = null, onSelectPlan }) {
   const [selectedPlan, setSelectedPlan] = useState('monthly');
@@ -172,91 +156,105 @@ export default function PricingModal({ isOpen, onClose, userEmail = null, onSele
                 Pro Subscription
               </h3>
 
-              {/* Plan Selection - 2 columns */}
-              <div className="grid md:grid-cols-2 gap-4 mb-6">
-                {Object.entries(PRICING).map(([key, plan]) => (
-                  <button
-                    key={key}
-                    onClick={() => setSelectedPlan(key)}
-                    className={`relative p-5 rounded-xl border-2 text-left transition-all ${
-                      selectedPlan === key
-                        ? 'border-blue-500 bg-blue-500/10'
-                        : 'border-slate-700 hover:border-slate-600'
-                    }`}
-                  >
-                    {plan.badge && (
-                      <span className={`absolute -top-2 right-4 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        plan.badge === 'Most Popular'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-emerald-500 text-white'
-                      }`}>
-                        {plan.badge}
-                      </span>
-                    )}
-
-                    <div className="text-slate-400 text-sm mb-1">{plan.name}</div>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-bold text-white">${plan.amount}</span>
-                      <span className="text-slate-500 text-sm">{plan.period}</span>
-                    </div>
-                    {plan.perMonth && (
-                      <div className="text-emerald-400 text-sm mt-1">
-                        Just ${plan.perMonth}/month
-                      </div>
-                    )}
-
-                    {selectedPlan === key && (
-                      <div className="absolute top-4 left-4">
-                        <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
-                  </button>
-                ))}
+              {/* Pro vs Free Comparison Table */}
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700 mb-6 overflow-hidden">
+                <div className="grid grid-cols-3 text-center text-sm font-medium border-b border-slate-700">
+                  <div className="p-3 text-slate-400">Feature</div>
+                  <div className="p-3 text-slate-400 border-l border-slate-700">Free</div>
+                  <div className="p-3 text-blue-400 border-l border-slate-700 bg-blue-500/10">Pro</div>
+                </div>
+                <div className="divide-y divide-slate-700/50">
+                  <div className="grid grid-cols-3 text-sm">
+                    <div className="p-3 text-slate-300">AI Searches</div>
+                    <div className="p-3 text-center border-l border-slate-700 text-slate-400">5/month</div>
+                    <div className="p-3 text-center border-l border-slate-700 bg-blue-500/5 text-emerald-400 font-medium">Unlimited</div>
+                  </div>
+                  <div className="grid grid-cols-3 text-sm">
+                    <div className="p-3 text-slate-300">Email Alerts</div>
+                    <div className="p-3 text-center border-l border-slate-700 text-slate-500">-</div>
+                    <div className="p-3 text-center border-l border-slate-700 bg-blue-500/5 text-emerald-400">Yes</div>
+                  </div>
+                  <div className="grid grid-cols-3 text-sm">
+                    <div className="p-3 text-slate-300">CSV Export</div>
+                    <div className="p-3 text-center border-l border-slate-700 text-slate-500">-</div>
+                    <div className="p-3 text-center border-l border-slate-700 bg-blue-500/5 text-emerald-400">Yes</div>
+                  </div>
+                  <div className="grid grid-cols-3 text-sm">
+                    <div className="p-3 text-slate-300">Saved Profile</div>
+                    <div className="p-3 text-center border-l border-slate-700 text-slate-500">-</div>
+                    <div className="p-3 text-center border-l border-slate-700 bg-blue-500/5 text-emerald-400">Yes</div>
+                  </div>
+                  <div className="grid grid-cols-3 text-sm">
+                    <div className="p-3 text-slate-300">Priority Support</div>
+                    <div className="p-3 text-center border-l border-slate-700 text-slate-500">-</div>
+                    <div className="p-3 text-center border-l border-slate-700 bg-blue-500/5 text-emerald-400">Yes</div>
+                  </div>
+                </div>
               </div>
 
-              {/* Feature Comparison */}
+              {/* Plan Selection - 2 columns */}
               <div className="grid md:grid-cols-2 gap-4 mb-6">
-                {/* Pro Features */}
-                <div className="bg-blue-500/10 rounded-xl p-4 border border-blue-500/20">
-                  <h4 className="text-sm font-semibold text-blue-300 mb-3">Pro includes:</h4>
-                  <ul className="space-y-2">
-                    {PRO_FEATURES.map((feature, i) => (
-                      <li key={i} className="flex items-center gap-2 text-sm">
-                        <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span className="text-slate-300">{feature.text}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {/* Monthly Plan */}
+                <button
+                  onClick={() => setSelectedPlan('monthly')}
+                  className={`relative p-5 rounded-xl border-2 text-left transition-all ${
+                    selectedPlan === 'monthly'
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-slate-700 hover:border-slate-600'
+                  }`}
+                >
+                  <span className="absolute -top-2 right-4 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500 text-white">
+                    Most Popular
+                  </span>
 
-                {/* Free Features */}
-                <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700">
-                  <h4 className="text-sm font-semibold text-slate-400 mb-3">Free plan:</h4>
-                  <ul className="space-y-2">
-                    {FREE_FEATURES.map((feature, i) => (
-                      <li key={i} className="flex items-center gap-2 text-sm">
-                        {feature.included ? (
-                          <svg className="w-4 h-4 text-emerald-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        )}
-                        <span className={feature.included ? 'text-slate-300' : 'text-slate-500'}>
-                          {feature.text}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                  {selectedPlan === 'monthly' && (
+                    <div className="absolute top-4 left-4">
+                      <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-slate-400 text-sm mb-1">Pro Monthly</div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-bold text-white">$24</span>
+                    <span className="text-slate-500 text-sm">/month</span>
+                  </div>
+                  <div className="text-slate-500 text-xs mt-2">Billed monthly</div>
+                </button>
+
+                {/* Annual Plan */}
+                <button
+                  onClick={() => setSelectedPlan('annual')}
+                  className={`relative p-5 rounded-xl border-2 text-left transition-all ${
+                    selectedPlan === 'annual'
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-slate-700 hover:border-slate-600'
+                  }`}
+                >
+                  <span className="absolute -top-2 right-4 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500 text-white">
+                    Save $89
+                  </span>
+
+                  {selectedPlan === 'annual' && (
+                    <div className="absolute top-4 left-4">
+                      <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-slate-400 text-sm mb-1">Pro Annual</div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-3xl font-bold text-white">$199</span>
+                    <span className="text-slate-500 text-sm">/year</span>
+                  </div>
+                  <div className="text-emerald-400 text-sm mt-1">Just $16.58/month</div>
+                </button>
               </div>
 
               {/* Subscribe CTA */}
