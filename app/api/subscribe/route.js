@@ -43,14 +43,20 @@ const PRO_FEATURES = [
   'Priority support',
 ];
 
+// Valid promo codes for subscriptions
+const PROMO_CODES = {
+  'NicksFreePromoCode': { discount: 100, description: 'God mode - 100% off' },
+  'PROPRO': { discount: 100, description: 'Free Pro access' },
+};
+
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { plan, email, userId } = body;
+    const { plan, email, userId, promoCode } = body;
 
     if (!plan || !PRICING[plan]) {
       return Response.json({
-        error: 'Invalid plan. Choose: monthly, semiannual, or annual'
+        error: 'Invalid plan. Choose: monthly or annual'
       }, { status: 400 });
     }
 
@@ -59,6 +65,25 @@ export async function POST(request) {
     }
 
     const selectedPlan = PRICING[plan];
+
+    // Check for valid promo code - bypass payment entirely
+    if (promoCode) {
+      const promo = PROMO_CODES[promoCode];
+
+      if (!promo) {
+        return Response.json({ error: 'invalid_promo' }, { status: 400 });
+      }
+
+      if (promo.discount === 100) {
+        console.log(`Promo code ${promoCode} used by ${email} for ${plan} subscription`);
+        // Return success URL that will activate Pro status
+        return Response.json({
+          url: `/purchase-success?subscription=${plan}&promo=${promoCode}`,
+          message: `Promo applied: ${promo.description}`,
+          promo: true,
+        });
+      }
+    }
 
     // Check if Stripe is configured
     if (!stripe) {

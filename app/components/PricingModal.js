@@ -38,6 +38,8 @@ export default function PricingModal({ isOpen, onClose, userEmail = null, onSele
   const [selectedPlan, setSelectedPlan] = useState('monthly');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoError, setPromoError] = useState('');
 
   const handleSubscribe = async () => {
     if (!userEmail) {
@@ -47,6 +49,7 @@ export default function PricingModal({ isOpen, onClose, userEmail = null, onSele
 
     setIsLoading(true);
     setError('');
+    setPromoError('');
 
     try {
       const response = await fetch('/api/subscribe', {
@@ -55,10 +58,17 @@ export default function PricingModal({ isOpen, onClose, userEmail = null, onSele
         body: JSON.stringify({
           plan: selectedPlan,
           email: userEmail,
+          promoCode: promoCode.trim(),
         }),
       });
 
       const data = await response.json();
+
+      if (data.error === 'invalid_promo') {
+        setPromoError('Invalid promo code');
+        setIsLoading(false);
+        return;
+      }
 
       if (data.error) {
         setError(data.error);
@@ -255,6 +265,18 @@ export default function PricingModal({ isOpen, onClose, userEmail = null, onSele
                   </div>
                   <div className="text-emerald-400 text-sm mt-1">Just $16.58/month</div>
                 </button>
+              </div>
+
+              {/* Promo Code Input */}
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => { setPromoCode(e.target.value); setPromoError(''); }}
+                  placeholder="Promo code (optional)"
+                  className="w-full px-4 py-2.5 bg-slate-800/50 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                {promoError && <p className="text-red-400 text-xs mt-1">{promoError}</p>}
               </div>
 
               {/* Subscribe CTA */}
