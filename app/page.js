@@ -658,26 +658,36 @@ export default function Home() {
     });
   };
 
-  // Combine all results
-  const allResults = Object.keys(results).flatMap(key => results[key]);
-  const totalResults = Object.values(pagination).reduce((sum, p) => sum + (p.total || 0), 0);
+  // Combine all results from ENABLED sources only
+  const allResults = Object.keys(results)
+    .filter(key => enabledSources[key])
+    .flatMap(key => results[key]);
+
+  const totalResults = Object.keys(pagination)
+    .filter(key => enabledSources[key])
+    .reduce((sum, key) => sum + (pagination[key]?.total || 0), 0);
 
   const getFilteredResults = () => {
     let filtered;
 
     if (activeTab === 'all') {
       if (activeCategory === 'all') {
+        // Only show results from enabled sources
         filtered = allResults;
       } else {
         const sourcesInCategory = CATEGORIES[activeCategory]?.sources || [];
-        filtered = allResults.filter(r => sourcesInCategory.includes(r.source));
+        // Filter by both category AND enabled sources
+        filtered = allResults.filter(r =>
+          sourcesInCategory.includes(r.source) && enabledSources[r.source]
+        );
       }
     } else if (activeTab === 'favorites') {
       filtered = filterStatus === 'all'
         ? favorites
         : favorites.filter(f => f.status === filterStatus);
     } else {
-      filtered = results[activeTab] || [];
+      // Specific source tab - only show if that source is enabled
+      filtered = enabledSources[activeTab] ? (results[activeTab] || []) : [];
     }
 
     return sortResults(filtered);
@@ -709,43 +719,73 @@ export default function Home() {
 
   const toggleSource = (source) => {
     setSearchMode('custom'); // Switch to custom mode when manually toggling
-    setEnabledSources(prev => ({ ...prev, [source]: !prev[source] }));
+    const newEnabled = !enabledSources[source];
+    setEnabledSources(prev => ({ ...prev, [source]: newEnabled }));
+
+    // Clear results for this source when disabled
+    if (!newEnabled) {
+      setResults(prev => ({ ...prev, [source]: [] }));
+      setPagination(prev => ({ ...prev, [source]: { page: 1, totalPages: 0, total: 0 } }));
+    }
   };
 
   const changeSearchMode = (mode) => {
     setSearchMode(mode);
+
+    // Helper to clear results for disabled sources
+    const clearDisabledResults = (newEnabledSources) => {
+      const newResults = { ...results };
+      const newPagination = { ...pagination };
+      Object.keys(newEnabledSources).forEach(key => {
+        if (!newEnabledSources[key]) {
+          newResults[key] = [];
+          newPagination[key] = { page: 1, totalPages: 0, total: 0 };
+        }
+      });
+      setResults(newResults);
+      setPagination(newPagination);
+    };
+
+    let newSources;
     switch (mode) {
       case 'all':
-        setEnabledSources({
+        newSources = {
           grants: true, sam: true, usaspending: true, nihReporter: true,
           nsf: true, federalReporter: true, propublica: true, fema: true,
           regulations: true, california: true
-        });
+        };
+        setEnabledSources(newSources);
         setSamType('g'); // Default to grants for SAM.gov
         break;
       case 'grants':
-        setEnabledSources({
+        newSources = {
           grants: true, sam: true, usaspending: true, nihReporter: true,
           nsf: true, federalReporter: true, propublica: false, fema: true,
           regulations: false, california: true
-        });
+        };
+        setEnabledSources(newSources);
+        clearDisabledResults(newSources);
         setSamType('g'); // Grants only on SAM.gov
         break;
       case 'contracts':
         // Only SAM.gov has contracts - disable all grant databases
-        setEnabledSources({
+        newSources = {
           grants: false, sam: true, usaspending: false, nihReporter: false,
           nsf: false, federalReporter: false, propublica: false, fema: false,
           regulations: false, california: false
-        });
+        };
+        setEnabledSources(newSources);
+        clearDisabledResults(newSources);
         setSamType('o'); // Contracts only on SAM.gov
         break;
       case 'research':
-        setEnabledSources({
+        newSources = {
           grants: false, sam: false, usaspending: false, nihReporter: true,
           nsf: true, federalReporter: true, propublica: false, fema: false,
           regulations: false, california: false
-        });
+        };
+        setEnabledSources(newSources);
+        clearDisabledResults(newSources);
         break;
       case 'custom':
         // Keep current selections
@@ -769,6 +809,15 @@ export default function Home() {
       nsf: false, federalReporter: false, propublica: false, fema: false,
       regulations: false, california: false
     });
+    // Clear all results when deselecting all
+    setResults({
+      grants: [], sam: [], usaspending: [], nihReporter: [],
+      nsf: [], federalReporter: [], propublica: [], fema: [],
+      regulations: [], california: []
+    });
+    setPagination(Object.fromEntries(
+      Object.keys(pagination).map(k => [k, { page: 1, totalPages: 0, total: 0 }])
+    ));
   };
 
   // Handle lead capture form submission
