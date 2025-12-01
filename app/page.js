@@ -1394,19 +1394,7 @@ function HomeContent() {
 
             {/* AI Search Box - Shows Chat for Pro users, simple search for others */}
             <div className="max-w-3xl mx-auto mb-6">
-              {(subscription || userInfo?.isPro) && showProChat ? (
-                /* Pro User: Interactive Chat Assistant */
-                <div className="h-[500px]">
-                  <GrantAssistantChat
-                    userProfile={agencyProfile}
-                    onGrantSelect={(grant) => {
-                      // When user clicks a grant in chat, we could open details
-                      console.log('Selected grant:', grant);
-                    }}
-                    onClose={() => setShowProChat(false)}
-                  />
-                </div>
-              ) : (subscription || userInfo?.isPro) ? (
+              {(subscription || userInfo?.isPro) ? (
                 /* Pro User: Option to use Chat or Simple Search */
                 <div className="card p-6">
                   <div className="flex items-center justify-between mb-4">
@@ -2356,6 +2344,17 @@ function HomeContent() {
         }}
         userEmail={userInfo?.email}
         userName={userInfo?.firstName}
+      />
+
+      {/* Grant Assistant Chat Modal (Pro Feature) */}
+      <GrantAssistantChat
+        isOpen={showProChat}
+        onClose={() => setShowProChat(false)}
+        userProfile={agencyProfile}
+        onGrantSelect={(grant) => {
+          console.log('Selected grant from chat:', grant);
+          // Could scroll to results or open a detail modal
+        }}
       />
       </div>
     </main>

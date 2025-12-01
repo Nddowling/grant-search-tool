@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 
-export default function GrantAssistantChat({ userProfile, onGrantSelect, onClose }) {
+export default function GrantAssistantChat({ userProfile, onGrantSelect, onClose, isOpen }) {
+  // Don't render if not open
+  if (!isOpen) return null;
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -134,20 +136,28 @@ export default function GrantAssistantChat({ userProfile, onGrantSelect, onClose
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Modal */}
+      <div className="relative w-full max-w-2xl h-[600px] flex flex-col bg-slate-900 rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-semibold text-sm">Grant Assistant</h3>
+              <p className="text-xs text-blue-100">Pro Feature - AI-Powered Search</p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-semibold text-sm">Grant Assistant</h3>
-            <p className="text-xs text-blue-100">Pro Feature</p>
-          </div>
-        </div>
         {onClose && (
           <button
             onClick={onClose}
@@ -262,6 +272,7 @@ export default function GrantAssistantChat({ userProfile, onGrantSelect, onClose
         <p className="text-xs text-slate-500 mt-2 text-center">
           Press Enter to send, Shift+Enter for new line
         </p>
+      </div>
       </div>
     </div>
   );
