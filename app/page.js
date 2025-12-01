@@ -8,6 +8,7 @@ import TemplateModal from './components/TemplateModal';
 import AgencyProfileModal from './components/AgencyProfileModal';
 import PricingModal from './components/PricingModal';
 import ProOnboardingModal from './components/ProOnboardingModal';
+import GrantAssistantChat from './components/GrantAssistantChat';
 
 // Free users get 5 AI searches per month (resets monthly)
 const FREE_MONTHLY_SEARCH_LIMIT = 5;
@@ -129,6 +130,9 @@ function HomeContent() {
   // Search history for Pro members
   const [searchHistory, setSearchHistory] = useState([]);
   const [showHistorySidebar, setShowHistorySidebar] = useState(true);
+
+  // Pro chat assistant state
+  const [showProChat, setShowProChat] = useState(false);
 
   // Get URL search params
   const searchParams = useSearchParams();
@@ -1388,52 +1392,124 @@ function HomeContent() {
               Describe your nonprofit, municipality, or department and we'll find matching grant opportunities using AI.
             </p>
 
-            {/* AI Search Box */}
+            {/* AI Search Box - Shows Chat for Pro users, simple search for others */}
             <div className="max-w-3xl mx-auto mb-6">
-              <div className="card p-6">
-                <textarea
-                  placeholder="Example: We're a small nonprofit in rural Texas focused on providing after-school STEM education programs for underserved middle school students. We're looking for grants to expand our robotics curriculum and hire additional instructors..."
-                  className="w-full h-32 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/50 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none text-sm"
-                  value={aiDescription}
-                  onChange={(e) => setAiDescription(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && e.metaKey) {
-                      performAiSearch();
-                    }
-                  }}
-                />
-                <div className="flex items-center justify-between mt-4">
-                  <div className="text-xs text-slate-500">
-                    {aiDescription.length > 0 && (
-                      <span>{aiDescription.length} characters</span>
-                    )}
-                    {!userInfo && (
-                      <span className="ml-2">
-                        • {FREE_MONTHLY_SEARCH_LIMIT - searchCount} free search{FREE_MONTHLY_SEARCH_LIMIT - searchCount !== 1 ? 'es' : ''} remaining this month
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={performAiSearch}
-                    disabled={aiSearchLoading || aiDescription.trim().length < 10}
-                    className="btn-primary flex items-center gap-2"
-                  >
-                    {aiSearchLoading ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                        Analyzing & Searching...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        Find My Grants
-                      </>
-                    )}
-                  </button>
+              {(subscription || userInfo?.isPro) && showProChat ? (
+                /* Pro User: Interactive Chat Assistant */
+                <div className="h-[500px]">
+                  <GrantAssistantChat
+                    userProfile={agencyProfile}
+                    onGrantSelect={(grant) => {
+                      // When user clicks a grant in chat, we could open details
+                      console.log('Selected grant:', grant);
+                    }}
+                    onClose={() => setShowProChat(false)}
+                  />
                 </div>
-              </div>
+              ) : (subscription || userInfo?.isPro) ? (
+                /* Pro User: Option to use Chat or Simple Search */
+                <div className="card p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-full font-medium">Pro Feature</span>
+                      <span className="text-sm text-slate-400">Interactive Grant Assistant</span>
+                    </div>
+                    <button
+                      onClick={() => setShowProChat(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white text-sm font-medium rounded-lg transition-all"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                      </svg>
+                      Chat with Grant Assistant
+                    </button>
+                  </div>
+                  <textarea
+                    placeholder="Example: We're a small nonprofit in rural Texas focused on providing after-school STEM education programs for underserved middle school students. We're looking for grants to expand our robotics curriculum and hire additional instructors..."
+                    className="w-full h-32 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/50 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none text-sm"
+                    value={aiDescription}
+                    onChange={(e) => setAiDescription(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.metaKey) {
+                        performAiSearch();
+                      }
+                    }}
+                  />
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-xs text-slate-500">
+                      {aiDescription.length > 0 && (
+                        <span>{aiDescription.length} characters</span>
+                      )}
+                      <span className="ml-2 text-emerald-400">Unlimited searches</span>
+                    </div>
+                    <button
+                      onClick={performAiSearch}
+                      disabled={aiSearchLoading || aiDescription.trim().length < 10}
+                      className="btn-primary flex items-center gap-2"
+                    >
+                      {aiSearchLoading ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          Analyzing & Searching...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          Quick Search
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Free/Non-Pro User: Simple Search */
+                <div className="card p-6">
+                  <textarea
+                    placeholder="Example: We're a small nonprofit in rural Texas focused on providing after-school STEM education programs for underserved middle school students. We're looking for grants to expand our robotics curriculum and hire additional instructors..."
+                    className="w-full h-32 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/50 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-none text-sm"
+                    value={aiDescription}
+                    onChange={(e) => setAiDescription(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && e.metaKey) {
+                        performAiSearch();
+                      }
+                    }}
+                  />
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-xs text-slate-500">
+                      {aiDescription.length > 0 && (
+                        <span>{aiDescription.length} characters</span>
+                      )}
+                      {!userInfo && (
+                        <span className="ml-2">
+                          • {FREE_MONTHLY_SEARCH_LIMIT - searchCount} free search{FREE_MONTHLY_SEARCH_LIMIT - searchCount !== 1 ? 'es' : ''} remaining this month
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={performAiSearch}
+                      disabled={aiSearchLoading || aiDescription.trim().length < 10}
+                      className="btn-primary flex items-center gap-2"
+                    >
+                      {aiSearchLoading ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          Analyzing & Searching...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          Find My Grants
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* AI Analysis Results */}
