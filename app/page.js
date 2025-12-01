@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import LeadCaptureModal from './components/LeadCaptureModal';
 import TemplateModal from './components/TemplateModal';
 import AgencyProfileModal from './components/AgencyProfileModal';
 import PricingModal from './components/PricingModal';
+import ProOnboardingModal from './components/ProOnboardingModal';
 
 // Free users get 5 AI searches per month (resets monthly)
 const FREE_MONTHLY_SEARCH_LIMIT = 5;
@@ -54,6 +57,9 @@ const CATEGORIES = {
 };
 
 export default function Home() {
+  // NextAuth session
+  const { data: session, status: sessionStatus } = useSession();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [agency, setAgency] = useState('');
   const [eligibility, setEligibility] = useState('');
@@ -117,6 +123,16 @@ export default function Home() {
   const [subscription, setSubscription] = useState(null); // { plan, status, currentPeriodEnd }
   const [templateUsage, setTemplateUsage] = useState(0); // Templates used this month
 
+  // Pro onboarding state
+  const [showProOnboarding, setShowProOnboarding] = useState(false);
+
+  // Search history for Pro members
+  const [searchHistory, setSearchHistory] = useState([]);
+  const [showHistorySidebar, setShowHistorySidebar] = useState(true);
+
+  // Get URL search params
+  const searchParams = useSearchParams();
+
   // Load favorites from localStorage on mount
   useEffect(() => {
     try {
@@ -166,6 +182,41 @@ export default function Home() {
       console.error('Error loading user data:', e);
     }
   }, []);
+
+  // Sync NextAuth session with userInfo state
+  useEffect(() => {
+    if (sessionStatus === 'authenticated' && session?.user) {
+      // User signed in via Google OAuth
+      const googleUser = {
+        email: session.user.email,
+        firstName: session.user.name?.split(' ')[0] || '',
+        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
+        name: session.user.name,
+        image: session.user.image,
+        provider: 'google',
+      };
+
+      // Check if we have existing localStorage data for this user (Pro status, etc.)
+      const existingData = JSON.parse(localStorage.getItem('grantSearchUser') || '{}');
+
+      // Merge: keep Pro status and other flags from localStorage, update user info from Google
+      const mergedUser = {
+        ...existingData,
+        ...googleUser,
+        // Preserve Pro status if it exists
+        isPro: existingData.isPro || false,
+        proSince: existingData.proSince || null,
+        proType: existingData.proType || null,
+        hasCompletedOnboarding: existingData.hasCompletedOnboarding || false,
+      };
+
+      // Save merged data back to localStorage
+      localStorage.setItem('grantSearchUser', JSON.stringify(mergedUser));
+      setUserInfo(mergedUser);
+
+      console.log('Google OAuth user synced:', mergedUser.email);
+    }
+  }, [session, sessionStatus]);
 
   // Save favorites to localStorage whenever they change
   useEffect(() => {
@@ -218,6 +269,45 @@ export default function Home() {
 
     checkSubscription();
   }, [userInfo]);
+
+  // Check for Pro onboarding trigger from URL or incomplete onboarding
+  useEffect(() => {
+    const onboardingParam = searchParams.get('onboarding');
+
+    if (onboardingParam === 'pro') {
+      // Check if user has completed onboarding
+      const userData = JSON.parse(localStorage.getItem('grantSearchUser') || '{}');
+      if (!userData.hasCompletedOnboarding) {
+        setShowProOnboarding(true);
+      }
+      // Clean up URL param
+      window.history.replaceState({}, '', '/');
+    }
+
+    // Also check if Pro user hasn't completed onboarding on page load
+    if (userInfo?.isPro && !userInfo?.hasCompletedOnboarding) {
+      setShowProOnboarding(true);
+    }
+  }, [searchParams, userInfo]);
+
+  // Load search history for Pro members
+  useEffect(() => {
+    if (userInfo?.isPro || subscription) {
+      try {
+        const history = JSON.parse(localStorage.getItem('grantSearchHistory') || '[]');
+        setSearchHistory(history);
+      } catch (e) {
+        console.error('Error loading search history:', e);
+      }
+    }
+  }, [userInfo, subscription]);
+
+  // Auto-populate search box with organization description from profile
+  useEffect(() => {
+    if (agencyProfile?.organizationDescription && !aiDescription) {
+      setAiDescription(agencyProfile.organizationDescription);
+    }
+  }, [agencyProfile]);
 
   // Calculate relevance score based on keyword matches
   const calculateRelevanceScore = (opp, query) => {
@@ -632,6 +722,22 @@ export default function Home() {
         const now = new Date();
         const currentMonth = `${now.getFullYear()}-${now.getMonth()}`;
         localStorage.setItem('grantSearchCount', JSON.stringify({ count: newCount, month: currentMonth }));
+      }
+
+      // Save to search history for Pro members
+      if (userInfo?.isPro || subscription) {
+        const historyEntry = {
+          id: Date.now(),
+          query: aiDescription.trim().slice(0, 100),
+          fullQuery: aiDescription.trim(),
+          timestamp: new Date().toISOString(),
+          resultCount: Object.values(data.results || {}).reduce((sum, r) => sum + (r.items?.length || 0), 0),
+          keywords: data.analysis?.keywords || [],
+        };
+        const existingHistory = JSON.parse(localStorage.getItem('grantSearchHistory') || '[]');
+        const updatedHistory = [historyEntry, ...existingHistory].slice(0, 50); // Keep last 50 searches
+        localStorage.setItem('grantSearchHistory', JSON.stringify(updatedHistory));
+        setSearchHistory(updatedHistory);
       }
 
     } catch (err) {
@@ -1129,8 +1235,87 @@ export default function Home() {
   const filteredResults = getFilteredResults();
 
   return (
-    <main className="min-h-screen p-4 md:p-8 relative z-10">
-      <div className="max-w-7xl mx-auto mb-8">
+    <main className="min-h-screen relative z-10">
+      {/* Search History Sidebar - Pro Members Only */}
+      {(userInfo?.isPro || subscription) && searchHistory.length > 0 && (
+        <div className={`fixed left-0 top-0 h-full z-40 transition-all duration-300 ${showHistorySidebar ? 'w-64' : 'w-0'}`}>
+          {/* Sidebar Content */}
+          <div className={`h-full bg-slate-900/95 backdrop-blur-sm border-r border-slate-700/50 flex flex-col transition-opacity duration-300 ${showHistorySidebar ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+            {/* Header */}
+            <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="text-sm font-medium text-white">Search History</span>
+              </div>
+              <button
+                onClick={() => setShowHistorySidebar(false)}
+                className="text-slate-400 hover:text-white p-1"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                </svg>
+              </button>
+            </div>
+
+            {/* History List */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {searchHistory.map((entry) => (
+                <button
+                  key={entry.id}
+                  onClick={() => {
+                    setAiDescription(entry.fullQuery);
+                  }}
+                  className="w-full text-left p-3 rounded-lg hover:bg-slate-800/50 transition-colors group mb-1"
+                >
+                  <p className="text-sm text-slate-300 line-clamp-2 group-hover:text-white">
+                    {entry.query}...
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-slate-500">
+                      {new Date(entry.timestamp).toLocaleDateString()}
+                    </span>
+                    <span className="text-xs text-slate-600">•</span>
+                    <span className="text-xs text-emerald-500">
+                      {entry.resultCount} results
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            {/* Clear History */}
+            <div className="p-3 border-t border-slate-700/50">
+              <button
+                onClick={() => {
+                  localStorage.removeItem('grantSearchHistory');
+                  setSearchHistory([]);
+                }}
+                className="w-full text-xs text-slate-500 hover:text-red-400 transition-colors"
+              >
+                Clear History
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toggle button when sidebar is collapsed */}
+      {(userInfo?.isPro || subscription) && searchHistory.length > 0 && !showHistorySidebar && (
+        <button
+          onClick={() => setShowHistorySidebar(true)}
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 bg-slate-800 border border-slate-700 border-l-0 rounded-r-lg p-2 text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+          title="Show search history"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+          </svg>
+        </button>
+      )}
+
+      <div className={`transition-all duration-300 ${(userInfo?.isPro || subscription) && searchHistory.length > 0 && showHistorySidebar ? 'ml-64' : ''}`}>
+      <div className="max-w-7xl mx-auto mb-8 p-4 md:p-8">
         {/* Brand Header */}
         <header className="mb-12">
           {/* Logo & Nav */}
@@ -1151,7 +1336,21 @@ export default function Home() {
 
             {/* Right side actions */}
             <div className="flex items-center gap-3">
-              {userInfo && subscription ? (
+              {/* Alerts button - always visible for logged in users */}
+              {userInfo && (
+                <button
+                  onClick={() => setShowProfileModal(true)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all bg-purple-500/10 border border-purple-500/20 text-purple-300 hover:bg-purple-500/20"
+                  title={agencyProfile ? 'Manage Alerts' : 'Set Up Alerts'}
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  <span className="hidden sm:inline">{agencyProfile ? 'Alerts' : 'Set Up Alerts'}</span>
+                </button>
+              )}
+              {/* Pro badge or Upgrade button */}
+              {userInfo && (subscription || userInfo.isPro) ? (
                 <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-500/20 border border-emerald-500/30 text-emerald-300">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1276,16 +1475,22 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               {userInfo ? (
                 <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-4 py-2 rounded-xl text-sm">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
+                  {userInfo.image ? (
+                    <img src={userInfo.image} alt="" className="w-5 h-5 rounded-full" />
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
                   <span>Welcome back, {userInfo.firstName}</span>
                   <span className="text-emerald-500">•</span>
-                  {subscription ? (
+                  {(subscription || userInfo.isPro) ? (
                     <span className="text-emerald-400 font-medium">Pro Member</span>
                   ) : (
                     <>
                       <span className="text-slate-400">Free Plan</span>
+                      <span className="text-slate-500">•</span>
+                      <span className="text-amber-400">{FREE_MONTHLY_SEARCH_LIMIT - searchCount} searches left</span>
                       <button
                         onClick={() => setShowPricingModal(true)}
                         className="ml-1 text-blue-400 hover:text-blue-300 text-xs underline"
@@ -1295,7 +1500,12 @@ export default function Home() {
                     </>
                   )}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      // Sign out from NextAuth if using Google
+                      if (session) {
+                        await signOut({ redirect: false });
+                      }
+                      // Clear local state
                       setUserInfo(null);
                       setSubscription(null);
                       localStorage.removeItem('grantSearchUser');
@@ -2056,6 +2266,22 @@ export default function Home() {
           }
         }}
       />
+
+      {/* Pro Onboarding Modal */}
+      <ProOnboardingModal
+        isOpen={showProOnboarding}
+        onComplete={(profile) => {
+          setShowProOnboarding(false);
+          setAgencyProfile(profile);
+          // Auto-populate search box with their description
+          if (profile.organizationDescription) {
+            setAiDescription(profile.organizationDescription);
+          }
+        }}
+        userEmail={userInfo?.email}
+        userName={userInfo?.firstName}
+      />
+      </div>
     </main>
   );
 }

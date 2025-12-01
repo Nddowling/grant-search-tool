@@ -1,4 +1,5 @@
 import './globals.css'
+import SessionProvider from './components/SessionProvider'
 
 export const metadata = {
   title: 'Grant Search | Kayden & Co Data Solutions',
@@ -24,7 +25,9 @@ export default function RootLayout({ children }) {
         />
       </head>
       <body className="min-h-screen antialiased">
-        {children}
+        <SessionProvider>
+          {children}
+        </SessionProvider>
       </body>
     </html>
   )

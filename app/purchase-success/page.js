@@ -177,6 +177,7 @@ function PurchaseSuccessContent() {
                 'Save your organization profile',
                 'Email alerts for new grants',
                 'Export search results to CSV',
+                'Search history sidebar',
                 'Priority support',
               ].map((benefit, i) => (
                 <li key={i} className="flex items-center gap-2 text-sm text-gray-700">
@@ -190,14 +191,17 @@ function PurchaseSuccessContent() {
           </div>
 
           <a
-            href="/"
+            href="/?onboarding=pro"
             className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded-lg font-semibold transition-colors"
           >
-            Start Searching
+            Set Up Your Profile
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
           </a>
+          <p className="text-gray-500 text-sm mt-3">
+            Complete your profile to get personalized grant recommendations
+          </p>
         </div>
       )}
 

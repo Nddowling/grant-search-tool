@@ -199,6 +199,11 @@ export default function PricingModal({ isOpen, onClose, userEmail = null, onSele
                     <div className="p-3 text-center border-l border-slate-700 text-slate-500">-</div>
                     <div className="p-3 text-center border-l border-slate-700 bg-blue-500/5 text-emerald-400">Yes</div>
                   </div>
+                  <div className="grid grid-cols-3 text-sm">
+                    <div className="p-3 text-slate-300">Search History</div>
+                    <div className="p-3 text-center border-l border-slate-700 text-slate-500">-</div>
+                    <div className="p-3 text-center border-l border-slate-700 bg-blue-500/5 text-emerald-400">Yes</div>
+                  </div>
                 </div>
               </div>
 
