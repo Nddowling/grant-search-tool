@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 
-export default function GrantAssistantChat({ userProfile, onGrantSelect, onClose, isOpen }) {
+export default function GrantAssistantChat({ userProfile, onGrantSelect, onClose, isOpen, onSearchResults }) {
   // Don't render if not open
   if (!isOpen) return null;
   const [messages, setMessages] = useState([
@@ -96,6 +96,10 @@ export default function GrantAssistantChat({ userProfile, onGrantSelect, onClose
                   ...prev.filter(m => m.type !== 'status'),
                   { role: 'assistant', type: 'search_results', content: data.content }
                 ]);
+                // Pass results to main page to display in results grid
+                if (onSearchResults) {
+                  onSearchResults(data.content);
+                }
               } else if (data.type === 'done') {
                 // Mark message as complete
                 setMessages(prev => prev.map(m =>

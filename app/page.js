@@ -2353,7 +2353,53 @@ function HomeContent() {
         userProfile={agencyProfile}
         onGrantSelect={(grant) => {
           console.log('Selected grant from chat:', grant);
-          // Could scroll to results or open a detail modal
+        }}
+        onSearchResults={(chatResults) => {
+          // Transform chat results to match main results format
+          // Chat returns: { totalFound, grants: [...], searchTerms }
+          // Main page expects: { source: { items: [...], total: N } }
+          const newResults = {};
+          const newPagination = {};
+
+          // Group grants by source
+          const grantsBySource = {};
+          for (const grant of chatResults.grants || []) {
+            const source = grant.source || 'grants';
+            if (!grantsBySource[source]) {
+              grantsBySource[source] = [];
+            }
+            // Transform to match expected item format
+            grantsBySource[source].push({
+              id: grant.id,
+              title: grant.title,
+              opportunityTitle: grant.title,
+              agency: grant.agency,
+              agencyName: grant.agency,
+              closeDate: grant.deadline,
+              deadline: grant.deadline,
+              awardAmount: grant.amount,
+              awardCeiling: grant.amount,
+              description: grant.description,
+              synopsis: grant.description,
+              url: grant.url,
+              opportunityUrl: grant.url,
+            });
+          }
+
+          // Build results and pagination for each source
+          for (const [source, items] of Object.entries(grantsBySource)) {
+            newResults[source] = items;
+            newPagination[source] = {
+              page: 1,
+              totalPages: 1,
+              total: items.length,
+            };
+          }
+
+          setResults(newResults);
+          setPagination(newPagination);
+          setSearchKeyword(chatResults.searchTerms || 'AI Search');
+          setHasSearchedOnce(true);
         }}
       />
       </div>
