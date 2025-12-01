@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import LeadCaptureModal from './components/LeadCaptureModal';
@@ -56,7 +56,7 @@ const CATEGORIES = {
   state: { label: 'State Grants', sources: ['california'] },
 };
 
-export default function Home() {
+function HomeContent() {
   // NextAuth session
   const { data: session, status: sessionStatus } = useSession();
 
@@ -2283,5 +2283,20 @@ export default function Home() {
       />
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-400">Loading...</p>
+        </div>
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }
