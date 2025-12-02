@@ -131,12 +131,25 @@ function PurchaseSuccessContent() {
           } catch (e) {
             console.error('Failed to parse pending grant:', e);
           }
+        } else {
+          // No pending grant found - show error with helpful message
+          console.error('No pending grant found for template generation');
+          setStatus('success'); // Show "Template Data Not Found" screen
+          return;
         }
       }
 
-      if (!foundTemplate) {
-        console.error('No custom template found in localStorage or URL params');
+      // If we found a template, mark as success
+      if (foundTemplate) {
+        setStatus('success');
+        setDownloadReady(true);
+        return;
       }
+
+      // No template found - this will show the "Template Data Not Found" screen
+      console.error('No custom template found in localStorage or URL params');
+      setStatus('success'); // This triggers the "not found" UI since hasTemplate is false
+      return;
     } else if (templateId) {
       // Standard template
       const templateData = getTemplateById(templateId);
