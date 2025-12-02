@@ -44,6 +44,41 @@ function PurchaseSuccessContent() {
       return;
     }
 
+    // Helper function to generate template from grant data
+    const generateTemplateFromGrant = async (grantData) => {
+      try {
+        console.log('Generating template from grant data...', grantData);
+        const response = await fetch('/api/generate-template', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: 'promo-user@example.com',
+            grantId: grantData.normalizedId,
+            grantTitle: grantData.normalizedTitle,
+            grantAgency: grantData.normalizedAgency,
+            grantAmount: grantData.normalizedAmount,
+            grantDeadline: grantData.normalizedDeadline,
+            grantSource: grantData.source,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to generate template');
+        }
+
+        const result = await response.json();
+        if (result.success && result.template) {
+          setCustomTemplate(result.template);
+          setDownloadReady(true);
+          console.log('Template generated successfully');
+          return true;
+        }
+      } catch (error) {
+        console.error('Error generating template:', error);
+      }
+      return false;
+    };
+
     // Check if this is a custom template
     if (type === 'custom') {
       setIsCustom(true);
@@ -73,6 +108,29 @@ function PurchaseSuccessContent() {
           console.log('Custom template loaded from URL params');
         } catch (e) {
           console.error('Failed to parse custom template data from URL:', e);
+        }
+      }
+
+      // If promo/mock and no template, check for pending grant and generate
+      if (!foundTemplate && (promoCode || isMock)) {
+        const pendingGrant = localStorage.getItem('pendingGrantForTemplate');
+        if (pendingGrant) {
+          try {
+            const grantData = JSON.parse(pendingGrant);
+            localStorage.removeItem('pendingGrantForTemplate');
+            console.log('Found pending grant, generating template...');
+            setStatus('generating');
+            generateTemplateFromGrant(grantData).then(success => {
+              if (success) {
+                setStatus('success');
+              } else {
+                setStatus('error');
+              }
+            });
+            return; // Exit early, the async function will update state
+          } catch (e) {
+            console.error('Failed to parse pending grant:', e);
+          }
         }
       }
 
@@ -151,6 +209,17 @@ function PurchaseSuccessContent() {
         <div className="text-center py-12">
           <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Confirming your purchase...</p>
+        </div>
+      )}
+
+      {status === 'generating' && (
+        <div className="text-center py-12">
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+            <span className="text-4xl">✨</span>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Generating Your Custom Template</h2>
+          <p className="text-gray-600 mb-4">Our AI is crafting a tailored template for your grant...</p>
+          <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
       )}
 
