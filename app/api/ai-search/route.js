@@ -241,7 +241,7 @@ Return ONLY valid JSON, no markdown or explanation.`;
       profile,
       results,
       totalResults,
-      searchedKeyword: primaryKeyword,
+      searchedKeyword: searchTerms,
     });
 
   } catch (error) {
