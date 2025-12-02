@@ -1,11 +1,11 @@
 /**
  * Conversational Grant Assistant API
  *
- * Pro users get an interactive Claude chat that:
- * - Asks clarifying questions about their organization
- * - Searches grants in real-time during conversation
- * - Explains why grants are a good fit
- * - Remembers context throughout the session
+ * Simplified version that:
+ * 1. Takes user's query
+ * 2. Calls the AI search endpoint ONCE
+ * 3. Returns results to main grid
+ * 4. Shows summary in chat
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -13,61 +13,6 @@ import Anthropic from '@anthropic-ai/sdk';
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
-
-// System prompt for the grant assistant
-const GRANT_ASSISTANT_PROMPT = `You are an expert grant research assistant helping organizations find and apply for grants. You have access to search multiple federal and state grant databases.
-
-Your role:
-1. Understand the user's organization, mission, and funding needs
-2. Ask clarifying questions to narrow down the best grants (organization type, budget, timeline, etc.)
-3. Search for grants using the search_grants tool when you have enough information
-4. Explain why specific grants are good matches
-5. Help evaluate eligibility and fit
-6. Guide them toward the application process
-
-Guidelines:
-- Be conversational and helpful, not robotic
-- Ask 2-3 clarifying questions before searching (don't ask too many at once)
-- When presenting grants, explain WHY each one is relevant to their specific situation
-- If no good matches are found, suggest alternative search terms or approaches
-- Remember what they've told you throughout the conversation
-
-Key questions to understand their needs:
-- Organization type (nonprofit 501c3, for-profit, government, tribal, etc.)
-- Primary mission/focus area
-- Stage (startup, established, expanding)
-- Funding amount needed
-- Any existing partnerships or track record
-- Geographic focus (national, state-specific, local)
-- Timeline urgency
-
-When you call search_grants, use specific, targeted search terms based on what you've learned about them.`;
-
-// Tool definition for searching grants
-const SEARCH_GRANTS_TOOL = {
-  name: "search_grants",
-  description: "Search federal and state grant databases for funding opportunities. Use specific, targeted search terms based on the organization's needs.",
-  input_schema: {
-    type: "object",
-    properties: {
-      searchTerms: {
-        type: "string",
-        description: "The search terms to use (e.g., 'veteran mental health technology' or 'youth STEM education nonprofit')"
-      },
-      organizationType: {
-        type: "string",
-        enum: ["nonprofit", "for-profit", "government", "tribal", "educational", "individual", "other"],
-        description: "Type of organization seeking funding"
-      },
-      focusAreas: {
-        type: "array",
-        items: { type: "string" },
-        description: "Key focus areas (e.g., ['mental health', 'veterans', 'technology'])"
-      }
-    },
-    required: ["searchTerms"]
-  }
-};
 
 export async function POST(request) {
   try {
@@ -77,103 +22,102 @@ export async function POST(request) {
       return Response.json({ error: 'Messages array required' }, { status: 400 });
     }
 
+    // Get the last user message
+    const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+    if (!lastUserMessage) {
+      return Response.json({ error: 'No user message found' }, { status: 400 });
+    }
+
+    const userQuery = lastUserMessage.content;
+
     // Build the base URL for internal API calls
     const host = request.headers.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
     const baseUrl = `${protocol}://${host}`;
-
-    // Add user profile context if available
-    let systemPrompt = GRANT_ASSISTANT_PROMPT;
-    if (userProfile) {
-      systemPrompt += `\n\nUser's saved profile information:
-- Organization: ${userProfile.organizationName || 'Not specified'}
-- Type: ${userProfile.organizationType || 'Not specified'}
-- Focus areas: ${userProfile.focusAreas?.join(', ') || 'Not specified'}
-- Description: ${userProfile.description || 'Not specified'}
-
-Use this information to personalize your responses and grant recommendations.`;
-    }
 
     // Create streaming response
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Initial Claude call with tools
-          let response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 2048,
-            system: systemPrompt,
-            tools: [SEARCH_GRANTS_TOOL],
-            messages: messages.map(m => ({
-              role: m.role,
-              content: m.content
-            })),
+          // Send initial status
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'status',
+            content: 'Searching grant databases...'
+          })}\n\n`));
+
+          // Call the AI search endpoint ONCE
+          const searchResponse = await fetch(`${baseUrl}/api/ai-search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              description: userQuery,
+              userEmail: userProfile?.email || 'pro-user',
+            }),
           });
 
-          // Handle tool use loop
-          while (response.stop_reason === 'tool_use') {
-            const toolUseBlock = response.content.find(block => block.type === 'tool_use');
+          if (!searchResponse.ok) {
+            throw new Error('Search failed');
+          }
 
-            if (toolUseBlock && toolUseBlock.name === 'search_grants') {
-              // Send status update
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-                type: 'status',
-                content: 'Searching grant databases...'
-              })}\n\n`));
+          const searchData = await searchResponse.json();
 
-              // Execute the search
-              const searchResults = await executeGrantSearch(baseUrl, toolUseBlock.input);
+          if (!searchData.success) {
+            throw new Error(searchData.error || 'Search failed');
+          }
 
-              // Send any text content before tool use
-              const textContent = response.content.find(block => block.type === 'text');
-              if (textContent) {
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-                  type: 'text',
-                  content: textContent.text
-                })}\n\n`));
-              }
+          // Format results for the main page
+          const formattedResults = {
+            totalFound: searchData.totalResults,
+            results: searchData.results,
+            analysis: searchData.analysis,
+            hasAiRecommendations: searchData.hasAiRecommendations,
+          };
 
-              // Send search results
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-                type: 'search_results',
-                content: searchResults
-              })}\n\n`));
+          // Send search results to populate the main grid
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'search_results',
+            content: formattedResults
+          })}\n\n`));
 
-              // Continue conversation with tool result
-              const updatedMessages = [
-                ...messages.map(m => ({ role: m.role, content: m.content })),
-                { role: 'assistant', content: response.content },
-                {
-                  role: 'user',
-                  content: [{
-                    type: 'tool_result',
-                    tool_use_id: toolUseBlock.id,
-                    content: JSON.stringify(searchResults)
-                  }]
-                }
-              ];
-
-              response = await anthropic.messages.create({
-                model: 'claude-sonnet-4-20250514',
-                max_tokens: 2048,
-                system: systemPrompt,
-                tools: [SEARCH_GRANTS_TOOL],
-                messages: updatedMessages,
+          // Generate a brief summary for the chat
+          const topGrants = [];
+          for (const [source, data] of Object.entries(searchData.results || {})) {
+            for (const item of (data.items || []).slice(0, 3)) {
+              topGrants.push({
+                title: item.title || item.opportunityTitle || item.name || 'Untitled',
+                agency: item.agency || item.agencyName || 'Unknown',
+                source: source,
               });
-            } else {
-              break;
             }
           }
 
-          // Send final text response
-          const finalText = response.content.find(block => block.type === 'text');
-          if (finalText) {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-              type: 'text',
-              content: finalText.text
-            })}\n\n`));
+          // Create summary message
+          let summaryText = `I found ${searchData.totalResults} grants matching your search.\n\n`;
+
+          if (searchData.analysis?.understoodIntent) {
+            summaryText += `**What I understood:** ${searchData.analysis.understoodIntent}\n\n`;
           }
+
+          if (searchData.hasAiRecommendations) {
+            summaryText += `I've included AI-recommended programs (shown with purple badges) that may not appear in standard database searches.\n\n`;
+          }
+
+          if (topGrants.length > 0) {
+            summaryText += `**Top matches include:**\n`;
+            topGrants.slice(0, 5).forEach((grant, i) => {
+              summaryText += `${i + 1}. ${grant.title.slice(0, 60)}${grant.title.length > 60 ? '...' : ''}\n`;
+            });
+            summaryText += `\nAll ${searchData.totalResults} results are displayed in the main grid. Click any grant to see details or get a custom template.`;
+          } else {
+            summaryText += `No grants found. Try describing your organization differently or broadening your search.`;
+          }
+
+          // Send the summary text
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'text',
+            content: summaryText
+          })}\n\n`));
 
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
           controller.close();
@@ -182,7 +126,7 @@ Use this information to personalize your responses and grant recommendations.`;
           console.error('Chat stream error:', error);
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({
             type: 'error',
-            content: 'Sorry, I encountered an error. Please try again.'
+            content: 'Sorry, I encountered an error searching for grants. Please try again.'
           })}\n\n`));
           controller.close();
         }
@@ -201,68 +145,4 @@ Use this information to personalize your responses and grant recommendations.`;
     console.error('Chat API error:', error);
     return Response.json({ error: 'Chat failed' }, { status: 500 });
   }
-}
-
-// Execute grant search using existing APIs
-async function executeGrantSearch(baseUrl, params) {
-  const { searchTerms, organizationType, focusAreas } = params;
-
-  const searchPromises = [
-    // Grants.gov
-    fetch(`${baseUrl}/api/grants?keyword=${encodeURIComponent(searchTerms)}&limit=10`)
-      .then(r => r.json())
-      .then(data => ({ source: 'grants', items: data.opportunities || [] }))
-      .catch(() => ({ source: 'grants', items: [] })),
-
-    // SAM.gov
-    fetch(`${baseUrl}/api/sam?keyword=${encodeURIComponent(searchTerms)}&limit=10`)
-      .then(r => r.json())
-      .then(data => ({ source: 'sam', items: data.opportunities || [] }))
-      .catch(() => ({ source: 'sam', items: [] })),
-  ];
-
-  // Add NIH for health-related searches
-  if (focusAreas?.some(f => ['health', 'medical', 'mental health', 'wellness', 'healthcare'].includes(f.toLowerCase()))) {
-    searchPromises.push(
-      fetch(`${baseUrl}/api/nih-reporter?keyword=${encodeURIComponent(searchTerms)}&limit=5`)
-        .then(r => r.json())
-        .then(data => ({ source: 'nihReporter', items: data.projects || [] }))
-        .catch(() => ({ source: 'nihReporter', items: [] }))
-    );
-  }
-
-  // Add SBIR for small business/startup
-  if (organizationType === 'for-profit' || focusAreas?.some(f => f.toLowerCase().includes('startup'))) {
-    searchPromises.push(
-      fetch(`${baseUrl}/api/grants?keyword=${encodeURIComponent('SBIR ' + searchTerms)}&limit=5`)
-        .then(r => r.json())
-        .then(data => ({ source: 'sbir', items: data.opportunities || [] }))
-        .catch(() => ({ source: 'sbir', items: [] }))
-    );
-  }
-
-  const results = await Promise.all(searchPromises);
-
-  // Combine and format results
-  const allGrants = [];
-  for (const result of results) {
-    for (const item of result.items.slice(0, 5)) {
-      allGrants.push({
-        source: result.source,
-        title: item.title || item.opportunityTitle || item.projectTitle || 'Untitled',
-        agency: item.agency || item.agencyName || item.organization?.name || 'Unknown Agency',
-        deadline: item.closeDate || item.applicationDeadline || 'Not specified',
-        amount: item.awardAmount || item.awardCeiling || item.totalCost || 'Varies',
-        description: (item.description || item.synopsis || item.abstract || '').slice(0, 300),
-        url: item.url || item.opportunityUrl || null,
-        id: item.id || item.opportunityId || item.projectNum || Math.random().toString(36).slice(2),
-      });
-    }
-  }
-
-  return {
-    totalFound: allGrants.length,
-    grants: allGrants.slice(0, 10), // Return top 10
-    searchTerms,
-  };
 }
