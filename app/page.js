@@ -25,6 +25,7 @@ const GRANT_STATUSES = [
 
 // Data source configuration
 const DATA_SOURCES = {
+  aiRecommended: { name: 'AI Recommended', color: 'bg-purple-600', badge: 'bg-purple-100 text-purple-800', category: 'recommended', type: 'grants', isAI: true },
   grants: { name: 'Grants.gov', color: 'bg-blue-500', badge: 'bg-blue-100 text-blue-800', category: 'opportunities', type: 'grants' },
   sam: { name: 'SAM.gov', color: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-800', category: 'opportunities', type: 'both' },
   usaspending: { name: 'USASpending', color: 'bg-indigo-500', badge: 'bg-indigo-100 text-indigo-800', category: 'awards', type: 'grants' },

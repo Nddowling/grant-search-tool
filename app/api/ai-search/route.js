@@ -23,55 +23,88 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Step 1: Use Claude to deeply understand the search intent
-    const analysisPrompt = `You are an expert grant researcher. Your job is to understand EXACTLY what kind of grants this organization needs.
+    // Step 1: Use Claude to understand intent AND recommend grants from its knowledge
+    const analysisPrompt = `You are an expert grant researcher with deep knowledge of federal, state, and private funding programs.
 
 User's search query:
 "${description}"
 
-Analyze this carefully and return a JSON object:
+Your job is to:
+1. Understand exactly what they need
+2. Recommend SPECIFIC grant programs you know about (not just search terms)
+3. Provide search parameters for database queries
+
+Return a JSON object:
 {
   "understoodIntent": "One sentence describing what they're ACTUALLY looking for",
   "organizationType": "municipality|nonprofit|tribal|school|small-business|for-profit|individual|other",
   "specificEntity": "e.g., 'small police department', 'rural fire department', 'community health clinic'",
-  "primarySearchTerms": ["array of 2-4 SPECIFIC search phrases to try"],
+  "primarySearchTerms": ["array of 2-4 SPECIFIC search phrases to try in grant databases"],
   "mustHaveKeywords": ["words that MUST appear in relevant grants"],
   "excludeKeywords": ["words that indicate an IRRELEVANT grant"],
-  "relevantSources": ["grants", "sam"] - only include sources that make sense,
-  "eligibleFor": ["law enforcement", "public safety", "local government", etc - grant categories they qualify for]
+  "relevantSources": ["grants", "sam"] - which API sources to search,
+  "eligibleFor": ["law enforcement", "public safety", "local government", etc],
+
+  "recommendedGrants": [
+    {
+      "name": "SPECIFIC program name you know exists",
+      "agency": "Administering agency (DOJ, VA, HHS, etc.)",
+      "description": "What this program funds and why it's relevant",
+      "typicalAmount": "Funding range if known",
+      "eligibility": "Who can apply",
+      "website": "Official program website URL if you know it",
+      "applyInfo": "How to apply or where to find more info"
+    }
+  ]
 }
 
-EXAMPLES:
+IMPORTANT: For recommendedGrants, include REAL programs you know exist. Examples:
+- For police: COPS Hiring Program, Byrne JAG, Bulletproof Vest Partnership, Community Policing Development
+- For veterans: VA Supportive Services for Veteran Families (SSVF), Homeless Veterans Reintegration Program, VA Community Care grants
+- For fire departments: AFG (Assistance to Firefighters), SAFER, Fire Prevention & Safety
+- For health nonprofits: SAMHSA grants, HRSA community health, CDC prevention grants
+- For education: Title I, 21st Century Community Learning Centers, IDEA grants
+- For foundations: Robert Wood Johnson Foundation, Kresge Foundation, Ford Foundation programs
 
-Query: "grants for small police departments"
+Include 3-8 specific programs that match their query. Be accurate - only include programs you're confident exist.
+
+EXAMPLE for "grants for small police departments":
 {
   "understoodIntent": "Looking for federal grants to fund small/rural police department operations, equipment, or programs",
   "organizationType": "municipality",
   "specificEntity": "small police department",
-  "primarySearchTerms": ["police department grant", "law enforcement funding", "COPS grant", "BJA police"],
-  "mustHaveKeywords": ["police", "law enforcement", "public safety", "COPS"],
-  "excludeKeywords": ["disaster", "weather", "agriculture", "health research", "education K-12", "nonprofit only"],
+  "primarySearchTerms": ["COPS hiring program", "Byrne JAG grant", "law enforcement equipment"],
+  "mustHaveKeywords": ["police", "law enforcement", "public safety"],
+  "excludeKeywords": ["disaster", "agriculture", "health research"],
   "relevantSources": ["grants", "sam"],
-  "eligibleFor": ["law enforcement", "public safety", "local government", "criminal justice"]
+  "eligibleFor": ["law enforcement", "local government"],
+  "recommendedGrants": [
+    {
+      "name": "COPS Hiring Program (CHP)",
+      "agency": "Department of Justice - COPS Office",
+      "description": "Provides funding to hire community policing officers. Prioritizes small and rural agencies.",
+      "typicalAmount": "$125,000 per officer position over 3 years",
+      "eligibility": "State, local, and tribal law enforcement agencies",
+      "website": "https://cops.usdoj.gov/chp",
+      "applyInfo": "Apply through COPS Office during open solicitation period"
+    },
+    {
+      "name": "Edward Byrne Memorial Justice Assistance Grant (JAG)",
+      "agency": "Department of Justice - BJA",
+      "description": "Flexible funding for law enforcement, prosecution, courts, prevention, corrections, and community programs.",
+      "typicalAmount": "Varies by jurisdiction formula",
+      "eligibility": "State and local governments",
+      "website": "https://bja.ojp.gov/program/jag/overview",
+      "applyInfo": "Formula grants - contact state administering agency"
+    }
+  ]
 }
 
-Query: "veteran wellness nonprofit"
-{
-  "understoodIntent": "Looking for grants for a nonprofit focused on veteran mental health and wellness programs",
-  "organizationType": "nonprofit",
-  "specificEntity": "veteran wellness nonprofit",
-  "primarySearchTerms": ["veteran mental health", "veteran wellness program", "VA community grant"],
-  "mustHaveKeywords": ["veteran", "mental health", "wellness", "nonprofit"],
-  "excludeKeywords": ["disaster", "weather", "agriculture", "for-profit only", "construction"],
-  "relevantSources": ["grants", "sam", "nihReporter"],
-  "eligibleFor": ["veteran services", "mental health", "nonprofit", "community programs"]
-}
-
-Return ONLY valid JSON for the user's query above.`;
+Return ONLY valid JSON for the user's query.`;
 
     const analysisResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
+      max_tokens: 2500, // Increased for detailed recommendations
       messages: [{ role: 'user', content: analysisPrompt }],
     });
 
@@ -258,10 +291,39 @@ Return ONLY valid JSON for the user's query above.`;
       }
     }
 
-    // Recalculate total
+    // Recalculate total from API results
     totalResults = Object.values(results).reduce((sum, r) => sum + r.items.length, 0);
 
-    // Step 5: Create response
+    // Step 5: Add AI-recommended grants as a separate source
+    const aiRecommendations = analysis.recommendedGrants || [];
+    if (aiRecommendations.length > 0) {
+      // Format AI recommendations to match our grant card structure
+      results.aiRecommended = {
+        items: aiRecommendations.map((rec, index) => ({
+          id: `ai-rec-${index}`,
+          title: rec.name,
+          opportunityTitle: rec.name,
+          agency: rec.agency,
+          agencyName: rec.agency,
+          description: rec.description,
+          synopsis: rec.description,
+          awardAmount: rec.typicalAmount,
+          awardCeiling: rec.typicalAmount,
+          eligibility: rec.eligibility,
+          url: rec.website,
+          opportunityUrl: rec.website,
+          applyInfo: rec.applyInfo,
+          isAiRecommendation: true, // Flag to style differently in UI
+          _relevanceScore: 100, // High score for AI recommendations
+        })),
+        total: aiRecommendations.length,
+        page: 1,
+        totalPages: 1,
+      };
+      totalResults += aiRecommendations.length;
+    }
+
+    // Step 6: Create response
     const profile = {
       description: description,
       organizationType: analysis.organizationType,
@@ -282,6 +344,7 @@ Return ONLY valid JSON for the user's query above.`;
       results,
       totalResults,
       searchedKeyword: searchTermsArray[0],
+      hasAiRecommendations: aiRecommendations.length > 0,
     });
 
   } catch (error) {
