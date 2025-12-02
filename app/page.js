@@ -2070,7 +2070,7 @@ function HomeContent() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <span className={`inline-block px-2 py-1 rounded text-xs font-bold ${sourceConfig.badge}`}>
-                        {sourceConfig.name?.toUpperCase() || opp.source.toUpperCase()}
+                        {sourceConfig.name?.toUpperCase() || opp.source?.toUpperCase() || 'UNKNOWN'}
                       </span>
                       {isInFavorites && (
                         <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${currentStatus.color}`}>
