@@ -23,32 +23,51 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Step 1: Use Claude to analyze the description and extract search parameters
-    const analysisPrompt = `You are a grant research assistant. Analyze this organization description and extract search parameters for finding relevant grants.
+    // Step 1: Use Claude to deeply understand the search intent
+    const analysisPrompt = `You are an expert grant researcher. Your job is to understand EXACTLY what kind of grants this organization needs.
 
-User's description:
+User's search query:
 "${description}"
 
-Return a JSON object with:
+Analyze this carefully and return a JSON object:
 {
-  "organizationType": "nonprofit|municipality|school|tribal|faith-based|small-business|other",
-  "keywords": ["array", "of", "5-8", "highly specific", "search", "keywords"],
-  "focusAreas": ["primary focus area", "secondary focus"],
-  "eligibilityTypes": ["25-State governments", "99-Others", etc - use grants.gov codes if applicable],
-  "fundingRange": { "min": number or null, "max": number or null },
-  "summary": "2-3 sentence summary of what they're looking for",
-  "primarySearchTerms": "the 2-3 most important search terms combined (e.g., 'veteran mental health' or 'youth STEM education')",
-  "excludeCategories": ["disaster relief", "weather", etc - categories that are NOT relevant],
-  "relevantSources": ["grants", "sam", "nihReporter"] - which database sources are most likely to have relevant results
+  "understoodIntent": "One sentence describing what they're ACTUALLY looking for",
+  "organizationType": "municipality|nonprofit|tribal|school|small-business|for-profit|individual|other",
+  "specificEntity": "e.g., 'small police department', 'rural fire department', 'community health clinic'",
+  "primarySearchTerms": ["array of 2-4 SPECIFIC search phrases to try"],
+  "mustHaveKeywords": ["words that MUST appear in relevant grants"],
+  "excludeKeywords": ["words that indicate an IRRELEVANT grant"],
+  "relevantSources": ["grants", "sam"] - only include sources that make sense,
+  "eligibleFor": ["law enforcement", "public safety", "local government", etc - grant categories they qualify for]
 }
 
-IMPORTANT:
-- Focus on extracting SPECIFIC, actionable search terms related to their actual mission/goals
-- The primarySearchTerms should be a focused phrase that captures their core need
-- excludeCategories should list types of grants that would NOT be relevant (e.g., if they're a tech nonprofit, exclude "disaster relief", "agriculture", etc.)
-- relevantSources should only include databases that would actually have relevant grants (e.g., don't include FEMA for a wellness app, don't include NIH for construction projects)
+EXAMPLES:
 
-Return ONLY valid JSON, no markdown or explanation.`;
+Query: "grants for small police departments"
+{
+  "understoodIntent": "Looking for federal grants to fund small/rural police department operations, equipment, or programs",
+  "organizationType": "municipality",
+  "specificEntity": "small police department",
+  "primarySearchTerms": ["police department grant", "law enforcement funding", "COPS grant", "BJA police"],
+  "mustHaveKeywords": ["police", "law enforcement", "public safety", "COPS"],
+  "excludeKeywords": ["disaster", "weather", "agriculture", "health research", "education K-12", "nonprofit only"],
+  "relevantSources": ["grants", "sam"],
+  "eligibleFor": ["law enforcement", "public safety", "local government", "criminal justice"]
+}
+
+Query: "veteran wellness nonprofit"
+{
+  "understoodIntent": "Looking for grants for a nonprofit focused on veteran mental health and wellness programs",
+  "organizationType": "nonprofit",
+  "specificEntity": "veteran wellness nonprofit",
+  "primarySearchTerms": ["veteran mental health", "veteran wellness program", "VA community grant"],
+  "mustHaveKeywords": ["veteran", "mental health", "wellness", "nonprofit"],
+  "excludeKeywords": ["disaster", "weather", "agriculture", "for-profit only", "construction"],
+  "relevantSources": ["grants", "sam", "nihReporter"],
+  "eligibleFor": ["veteran services", "mental health", "nonprofit", "community programs"]
+}
+
+Return ONLY valid JSON for the user's query above.`;
 
     const analysisResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -64,100 +83,67 @@ Return ONLY valid JSON, no markdown or explanation.`;
       analysis = JSON.parse(cleanJson);
     } catch (parseError) {
       console.error('Failed to parse AI analysis:', parseError);
-      // Fallback to basic keyword extraction
+      // Fallback to basic extraction
       analysis = {
-        keywords: description.split(' ').filter(w => w.length > 4).slice(0, 5),
-        summary: description.slice(0, 200),
-        primarySearchTerms: description.split(' ').filter(w => w.length > 4).slice(0, 3).join(' '),
+        understoodIntent: description,
+        primarySearchTerms: [description],
+        mustHaveKeywords: description.split(' ').filter(w => w.length > 3),
+        excludeKeywords: [],
         relevantSources: ['grants', 'sam'],
-        excludeCategories: [],
+        eligibleFor: [],
       };
     }
+
+    console.log('AI Search Analysis:', JSON.stringify(analysis, null, 2));
 
     // Step 2: Build the base URL for API calls
     const host = request.headers.get('host');
     const protocol = host?.includes('localhost') ? 'http' : 'https';
     const baseUrl = `${protocol}://${host}`;
 
-    // Step 3: Search only RELEVANT sources using AI-generated search terms
-    // Use the primarySearchTerms which is more specific than just the first keyword
-    const searchTerms = analysis.primarySearchTerms || analysis.keywords?.slice(0, 3).join(' ') || description.split(' ')[0];
-    const relevantSources = analysis.relevantSources || ['grants', 'sam', 'usaspending'];
-    const excludeCategories = (analysis.excludeCategories || []).map(c => c.toLowerCase());
+    // Step 3: Search using MULTIPLE search terms for better coverage
+    const searchTermsArray = Array.isArray(analysis.primarySearchTerms)
+      ? analysis.primarySearchTerms
+      : [analysis.primarySearchTerms || description];
+    const relevantSources = analysis.relevantSources || ['grants', 'sam'];
+    const mustHaveKeywords = (analysis.mustHaveKeywords || []).map(k => k.toLowerCase());
+    const excludeKeywords = (analysis.excludeKeywords || []).map(k => k.toLowerCase());
 
-    console.log('AI Search - Terms:', searchTerms, 'Relevant sources:', relevantSources);
+    console.log('AI Search - Terms:', searchTermsArray, 'Must have:', mustHaveKeywords);
 
     const searchPromises = [];
 
-    // Only search sources that the AI determined are relevant
-    // Grants.gov - almost always relevant for grant seekers
-    if (relevantSources.includes('grants')) {
-      searchPromises.push(
-        fetchSource(`${baseUrl}/api/grants?keyword=${encodeURIComponent(searchTerms)}&limit=15`)
-          .then(data => ({ source: 'grants', data }))
-      );
+    // Search each term across relevant sources
+    for (const searchTerm of searchTermsArray.slice(0, 3)) { // Max 3 search terms
+      // Grants.gov
+      if (relevantSources.includes('grants')) {
+        searchPromises.push(
+          fetchSource(`${baseUrl}/api/grants?keyword=${encodeURIComponent(searchTerm)}&limit=20`)
+            .then(data => ({ source: 'grants', searchTerm, data }))
+        );
+      }
+
+      // SAM.gov
+      if (relevantSources.includes('sam')) {
+        searchPromises.push(
+          fetchSource(`${baseUrl}/api/sam?keyword=${encodeURIComponent(searchTerm)}&limit=20`)
+            .then(data => ({ source: 'sam', searchTerm, data }))
+        );
+      }
     }
 
-    // SAM.gov - usually relevant
-    if (relevantSources.includes('sam')) {
-      searchPromises.push(
-        fetchSource(`${baseUrl}/api/sam?keyword=${encodeURIComponent(searchTerms)}&limit=15`)
-          .then(data => ({ source: 'sam', data }))
-      );
-    }
-
-    // USASpending - for award history
-    if (relevantSources.includes('usaspending')) {
-      searchPromises.push(
-        fetchSource(`${baseUrl}/api/usaspending?keyword=${encodeURIComponent(searchTerms)}&limit=15`)
-          .then(data => ({ source: 'usaspending', data }))
-      );
-    }
-
-    // NIH Reporter - only for health/medical/research
+    // Only add specialized sources if explicitly relevant
     if (relevantSources.includes('nihReporter')) {
       searchPromises.push(
-        fetchSource(`${baseUrl}/api/nih-reporter?keyword=${encodeURIComponent(searchTerms)}&limit=15`)
+        fetchSource(`${baseUrl}/api/nih-reporter?keyword=${encodeURIComponent(searchTermsArray[0])}&limit=15`)
           .then(data => ({ source: 'nihReporter', data }))
       );
     }
 
-    // NSF - only for science/education/research
-    if (relevantSources.includes('nsf')) {
-      searchPromises.push(
-        fetchSource(`${baseUrl}/api/nsf?keyword=${encodeURIComponent(searchTerms)}&limit=15`)
-          .then(data => ({ source: 'nsf', data }))
-      );
-    }
-
-    // Federal Reporter - only for research grants
-    if (relevantSources.includes('federalReporter')) {
-      searchPromises.push(
-        fetchSource(`${baseUrl}/api/federal-reporter?keyword=${encodeURIComponent(searchTerms)}&limit=15`)
-          .then(data => ({ source: 'federalReporter', data }))
-      );
-    }
-
-    // ProPublica - for nonprofit research
-    if (relevantSources.includes('propublica')) {
-      searchPromises.push(
-        fetchSource(`${baseUrl}/api/propublica?keyword=${encodeURIComponent(searchTerms)}&limit=15`)
-          .then(data => ({ source: 'propublica', data }))
-      );
-    }
-
-    // FEMA - ONLY if disaster/emergency related
-    if (relevantSources.includes('fema')) {
-      searchPromises.push(
-        fetchSource(`${baseUrl}/api/fema?keyword=${encodeURIComponent(searchTerms)}&limit=15`)
-          .then(data => ({ source: 'fema', data }))
-      );
-    }
-
     // California Grants - only if California-based
-    if (relevantSources.includes('california') || description.toLowerCase().includes('california') || description.toLowerCase().includes('ca')) {
+    if (relevantSources.includes('california') || description.toLowerCase().includes('california')) {
       searchPromises.push(
-        fetchSource(`${baseUrl}/api/california?keyword=${encodeURIComponent(searchTerms)}&limit=15`)
+        fetchSource(`${baseUrl}/api/california?keyword=${encodeURIComponent(searchTermsArray[0])}&limit=15`)
           .then(data => ({ source: 'california', data }))
       );
     }
@@ -165,20 +151,50 @@ Return ONLY valid JSON, no markdown or explanation.`;
     // Wait for all searches to complete
     const searchResults = await Promise.allSettled(searchPromises);
 
-    // Compile results by source with relevance filtering
+    // Step 4: Compile and FILTER results with relevance scoring
     const results = {};
+    const seenIds = new Set(); // Deduplicate across search terms
     let totalResults = 0;
 
-    // Keywords to filter out if they appear in excluded categories
-    const irrelevantPatterns = excludeCategories.flatMap(cat => {
-      if (cat.includes('disaster') || cat.includes('weather') || cat.includes('storm')) {
-        return ['severe storm', 'tornado', 'flooding', 'hurricane', 'earthquake', 'wildfire', 'disaster declaration'];
+    // Helper function to calculate relevance score
+    const calculateRelevance = (item) => {
+      const title = (item.title || item.opportunityTitle || item.projectTitle || '').toLowerCase();
+      const desc = (item.description || item.synopsis || item.abstract || '').toLowerCase();
+      const agency = (item.agency || item.agencyName || '').toLowerCase();
+      const combined = title + ' ' + desc + ' ' + agency;
+
+      let score = 0;
+
+      // Boost for must-have keywords (each match = +10 points)
+      for (const keyword of mustHaveKeywords) {
+        if (combined.includes(keyword)) {
+          score += 10;
+          // Extra boost if in title
+          if (title.includes(keyword)) score += 5;
+        }
       }
-      if (cat.includes('agriculture') || cat.includes('farming')) {
-        return ['crop insurance', 'farm bill', 'agricultural commodity'];
+
+      // Penalty for exclude keywords (each match = -20 points)
+      for (const keyword of excludeKeywords) {
+        if (combined.includes(keyword)) {
+          score -= 20;
+        }
       }
-      return [cat];
-    });
+
+      // Bonus for active/open grants
+      const deadline = item.closeDate || item.applicationDeadline || item.deadline;
+      if (deadline) {
+        const deadlineDate = new Date(deadline);
+        const now = new Date();
+        if (deadlineDate > now) {
+          score += 5; // Bonus for still open
+        } else {
+          score -= 50; // Big penalty for closed
+        }
+      }
+
+      return score;
+    };
 
     for (const result of searchResults) {
       if (result.status === 'fulfilled' && result.value.data) {
@@ -186,62 +202,86 @@ Return ONLY valid JSON, no markdown or explanation.`;
         let items = data.opportunities || data.awards || data.projects ||
                      data.organizations || data.grants || data.documents || [];
 
-        // Filter out irrelevant results based on title/description
-        if (irrelevantPatterns.length > 0) {
-          items = items.filter(item => {
-            const title = (item.title || item.opportunityTitle || item.projectTitle || '').toLowerCase();
-            const desc = (item.description || item.synopsis || item.abstract || '').toLowerCase();
-            const combined = title + ' ' + desc;
+        // Calculate relevance and filter
+        items = items
+          .map(item => ({
+            ...item,
+            _relevanceScore: calculateRelevance(item),
+            _id: item.id || item.opportunityId || item.projectNum || JSON.stringify(item.title || '').slice(0, 50),
+          }))
+          // Filter out low relevance (negative scores) and duplicates
+          .filter(item => {
+            if (item._relevanceScore < 0) return false;
+            if (seenIds.has(item._id)) return false;
+            seenIds.add(item._id);
+            return true;
+          })
+          // Sort by relevance
+          .sort((a, b) => b._relevanceScore - a._relevanceScore)
+          // Take top results
+          .slice(0, 15);
 
-            // Check if any irrelevant pattern matches
-            const isIrrelevant = irrelevantPatterns.some(pattern => combined.includes(pattern.toLowerCase()));
-            return !isIrrelevant;
-          });
-        }
-
-        // Also filter out grants with deadlines that have passed (more than 30 days ago)
+        // Filter out grants with deadlines more than 30 days past
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
         items = items.filter(item => {
           const deadline = item.closeDate || item.applicationDeadline || item.deadline;
-          if (!deadline) return true; // Keep if no deadline specified
+          if (!deadline) return true;
           const deadlineDate = new Date(deadline);
-          return deadlineDate > thirtyDaysAgo; // Keep if deadline is in future or within last 30 days
+          return deadlineDate > thirtyDaysAgo;
         });
 
-        results[source] = {
-          items,
-          total: items.length,
-          page: data.page || 1,
-          totalPages: data.totalPages || 1,
-        };
-        totalResults += items.length;
+        // Merge into existing results for this source
+        if (results[source]) {
+          // Combine and re-sort
+          const combined = [...results[source].items, ...items]
+            .filter((item, index, self) =>
+              index === self.findIndex(t => t._id === item._id)
+            )
+            .sort((a, b) => b._relevanceScore - a._relevanceScore)
+            .slice(0, 20);
+          results[source] = {
+            items: combined,
+            total: combined.length,
+            page: 1,
+            totalPages: 1,
+          };
+        } else {
+          results[source] = {
+            items,
+            total: items.length,
+            page: data.page || 1,
+            totalPages: data.totalPages || 1,
+          };
+        }
       }
     }
 
-    // Step 4: Create a profile object from the analysis
+    // Recalculate total
+    totalResults = Object.values(results).reduce((sum, r) => sum + r.items.length, 0);
+
+    // Step 5: Create response
     const profile = {
       description: description,
       organizationType: analysis.organizationType,
-      focusAreas: analysis.focusAreas || [],
-      keywords: analysis.keywords || [],
-      summary: analysis.summary,
+      specificEntity: analysis.specificEntity,
+      eligibleFor: analysis.eligibleFor || [],
       createdAt: new Date().toISOString(),
     };
 
     return Response.json({
       success: true,
       analysis: {
-        summary: analysis.summary,
-        keywords: analysis.keywords,
+        understoodIntent: analysis.understoodIntent,
         organizationType: analysis.organizationType,
-        focusAreas: analysis.focusAreas,
+        specificEntity: analysis.specificEntity,
+        eligibleFor: analysis.eligibleFor,
       },
       profile,
       results,
       totalResults,
-      searchedKeyword: searchTerms,
+      searchedKeyword: searchTermsArray[0],
     });
 
   } catch (error) {
